@@ -7427,8 +7427,6 @@
           Metadata from the first three arguments is stored by the message
           bus, but not interpreted; software that interacts with the
           container manager can use this metadata.
-          <!-- TODO: Clarify how the trust model works here. See
-          <https://bugs.freedesktop.org/show_bug.cgi?id=100344#c15>-->
           The method call may fail with the error
           <literal>org.freedesktop.DBus.Error.LimitsExceeded</literal>
           if the caller provides more metadata than the message bus
@@ -7652,6 +7650,7 @@
                     The opaque object path that was returned from the
                     <literal>AddServer</literal> method, identifying a
                     container instance.
+                    This output parameter is produced by the message bus.
                   </entry>
                 </row>
                 <row>
@@ -7663,6 +7662,8 @@
                     documented for
                     <link linkend="bus-messages-get-connection-credentials"
                       >GetConnectionCredentials</link>.
+                    This output parameter is produced by the message bus
+                    and is appropriate to use in trust decisions.
                   </entry>
                 </row>
                 <row>
@@ -7674,6 +7675,8 @@
                     <literal>AddServer</literal> method, such as
                     <literal>org.flatpak</literal> or
                     <literal>io.snapcraft</literal>.
+                    This output parameter is controlled by the creator
+                    of the container instance.
                   </entry>
                 </row>
                 <row>
@@ -7683,6 +7686,8 @@
                     Some unique identifier for an application or container,
                     whose meaning is defined by the maintainers of the
                     container type.
+                    This output parameter is controlled by the creator
+                    of the container instance.
                   </entry>
                 </row>
                 <row>
@@ -7692,6 +7697,8 @@
                     Metadata describing the application or container, with the
                     keys and values defined by the maintainers of the container
                     type.
+                    This output parameter is controlled by the creator
+                    of the container instance.
                   </entry>
                 </row>
               </tbody>
@@ -7708,6 +7715,15 @@
           is returned instead. If the given bus name has no owner at all, the
           <literal>org.freedesktop.DBus.Error.NameHasNoOwner</literal> error
           is returned instead.
+        </para>
+        <para>
+          Several of the output parameters are controlled by the creator of
+          the container instance.
+          On a bus that accepts connections from multiple clients at
+          different privilege levels, it is not appropriate to trust those
+          output parameters or use them in trust decisions unless the
+          process identified by the <literal>creator</literal> parameter
+          is trusted.
         </para>
       </sect3>
 
@@ -7751,6 +7767,8 @@
                     documented for
                     <link linkend="bus-messages-get-connection-credentials"
                       >GetConnectionCredentials</link>.
+                    This output parameter is produced by the message bus
+                    and is appropriate to use in trust decisions.
                   </entry>
                 </row>
                 <row>
@@ -7762,6 +7780,8 @@
                     <literal>AddServer</literal> method, such as
                     <literal>org.flatpak</literal> or
                     <literal>io.snapcraft</literal>.
+                    This output parameter is controlled by the creator
+                    of the container instance.
                   </entry>
                 </row>
                 <row>
@@ -7771,6 +7791,8 @@
                     Some unique identifier for an application or container,
                     whose meaning is defined by the maintainers of the
                     container type.
+                    This output parameter is controlled by the creator
+                    of the container instance.
                   </entry>
                 </row>
                 <row>
@@ -7780,6 +7802,8 @@
                     Metadata describing the application or container, with the
                     keys and values defined by the maintainers of the container
                     type.
+                    This output parameter is controlled by the creator
+                    of the container instance.
                   </entry>
                 </row>
               </tbody>
@@ -7793,6 +7817,12 @@
           return information about it. Otherwise, the
           <literal>org.freedesktop.DBus.Error.NotContainer</literal> error
           is returned.
+        </para>
+        <para>
+          Several of the output parameters are controlled by the creator of
+          the container instance.
+          See <xref linkend="bus-messages-containers1-get-connection-instance"/>
+          for more details.
         </para>
       </sect3>
 
