@@ -7620,6 +7620,7 @@
           <programlisting>
             GetConnectionInstance (in STRING bus_name,
                                    out OBJECT_PATH container_instance,
+                                   out DICT&lt;STRING,VARIANT&gt; creator,
                                    out STRING container_type,
                                    out STRING container_name,
                                    out DICT&lt;STRING,VARIANT&gt; metadata)
@@ -7655,6 +7656,17 @@
                 </row>
                 <row>
                   <entry>2</entry>
+                  <entry>DICT&lt;STRING,VARIANT&gt;</entry>
+                  <entry>
+                    The connection that created this container instance.
+                    The keys and values are the same as those that are
+                    documented for
+                    <link linkend="bus-messages-get-connection-credentials"
+                      >GetConnectionCredentials</link>.
+                  </entry>
+                </row>
+                <row>
+                  <entry>3</entry>
                   <entry>STRING</entry>
                   <entry>
                     Reversed domain name identifying a container
@@ -7665,7 +7677,7 @@
                   </entry>
                 </row>
                 <row>
-                  <entry>3</entry>
+                  <entry>4</entry>
                   <entry>STRING</entry>
                   <entry>
                     Some unique identifier for an application or container,
@@ -7674,7 +7686,7 @@
                   </entry>
                 </row>
                 <row>
-                  <entry>4</entry>
+                  <entry>5</entry>
                   <entry>DICT&lt;STRING,VARIANT&gt;</entry>
                   <entry>
                     Metadata describing the application or container, with the
@@ -7705,6 +7717,7 @@
           As a method:
           <programlisting>
             GetInstanceInfo (in OBJECT_PATH container_instance,
+                             out DICT&lt;STRING,VARIANT&gt; creator,
                              out STRING container_type,
                              out STRING container_name,
                              out DICT&lt;STRING,VARIANT&gt; metadata)
@@ -7731,6 +7744,17 @@
                 </row>
                 <row>
                   <entry>1</entry>
+                  <entry>DICT&lt;STRING,VARIANT&gt;</entry>
+                  <entry>
+                    The connection that created this container instance.
+                    The keys and values are the same as those that are
+                    documented for
+                    <link linkend="bus-messages-get-connection-credentials"
+                      >GetConnectionCredentials</link>.
+                  </entry>
+                </row>
+                <row>
+                  <entry>2</entry>
                   <entry>STRING</entry>
                   <entry>
                     Reversed domain name identifying a container
@@ -7741,7 +7765,7 @@
                   </entry>
                 </row>
                 <row>
-                  <entry>2</entry>
+                  <entry>3</entry>
                   <entry>STRING</entry>
                   <entry>
                     Some unique identifier for an application or container,
@@ -7750,7 +7774,7 @@
                   </entry>
                 </row>
                 <row>
-                  <entry>3</entry>
+                  <entry>4</entry>
                   <entry>DICT&lt;STRING,VARIANT&gt;</entry>
                   <entry>
                     Metadata describing the application or container, with the
