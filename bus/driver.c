@@ -1978,9 +1978,7 @@ bus_driver_fill_connection_credentials (DBusCredentials *credentials,
   dbus_pid_t pid = DBUS_PID_UNSET;
   const char *windows_sid = NULL;
   const char *linux_security_label = NULL;
-#ifdef DBUS_ENABLE_CONTAINERS
   const char *path;
-#endif
 #ifdef HAVE_UNIX_FD_PASSING
   int pid_fd = -1; /* owned by credentials */
 #endif
@@ -2041,7 +2039,6 @@ bus_driver_fill_connection_credentials (DBusCredentials *credentials,
         return FALSE;
     }
 
-#ifdef DBUS_ENABLE_CONTAINERS
   /* This has to come from the connection, not the credentials */
   if (peer_conn != NULL &&
       bus_containers_connection_is_contained (peer_conn, &path, NULL, NULL))
@@ -2051,7 +2048,6 @@ bus_driver_fill_connection_credentials (DBusCredentials *credentials,
                                       path))
         return FALSE;
     }
-#endif
 
 #ifdef HAVE_UNIX_FD_PASSING
   if (caller_conn != NULL && pid_fd >= 0 &&
