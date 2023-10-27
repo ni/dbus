@@ -38,7 +38,7 @@ dbus_bool_t bus_containers_handle_add_server          (DBusConnection  *connecti
                                                        BusTransaction  *transaction,
                                                        DBusMessage     *message,
                                                        DBusError       *error);
-dbus_bool_t bus_containers_handle_stop_instance       (DBusConnection  *connection,
+dbus_bool_t bus_containers_handle_stop_server         (DBusConnection  *connection,
                                                        BusTransaction  *transaction,
                                                        DBusMessage     *message,
                                                        DBusError       *error);
@@ -46,14 +46,14 @@ dbus_bool_t bus_containers_handle_stop_listening      (DBusConnection  *connecti
                                                        BusTransaction  *transaction,
                                                        DBusMessage     *message,
                                                        DBusError       *error);
-dbus_bool_t bus_containers_handle_get_instance_info   (DBusConnection  *connection,
+dbus_bool_t bus_containers_handle_get_server_info     (DBusConnection  *connection,
                                                        BusTransaction  *transaction,
                                                        DBusMessage     *message,
                                                        DBusError       *error);
-dbus_bool_t bus_containers_handle_get_connection_instance (DBusConnection *connection,
-                                                           BusTransaction *transaction,
-                                                           DBusMessage    *message,
-                                                           DBusError      *error);
+dbus_bool_t bus_containers_handle_get_connection_info (DBusConnection *connection,
+                                                       BusTransaction *transaction,
+                                                       DBusMessage    *message,
+                                                       DBusError      *error);
 dbus_bool_t bus_containers_handle_request_header      (DBusConnection  *connection,
                                                        BusTransaction  *transaction,
                                                        DBusMessage     *message,

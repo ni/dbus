@@ -2478,8 +2478,8 @@ bus_transaction_send (BusTransaction *transaction,
    * until we know we have enough memory for the entire transaction,
    * and that doesn't happen until we know all the recipients.
    * So this is about the last possible time we could edit the header. */
-  if ((d->want_headers & BUS_EXTRA_HEADERS_CONTAINER_INSTANCE) &&
-      dbus_message_get_container_instance (message) == NULL)
+  if ((d->want_headers & BUS_EXTRA_HEADERS_CONTAINER_PATH) &&
+      dbus_message_get_container_path (message) == NULL)
     {
       const char *path;
 
@@ -2488,7 +2488,7 @@ bus_transaction_send (BusTransaction *transaction,
                                                    NULL, NULL))
         path = "/";
 
-      if (!dbus_message_set_container_instance (message, path))
+      if (!dbus_message_set_container_path (message, path))
         return FALSE;
     }
 
