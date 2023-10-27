@@ -53,7 +53,8 @@ typedef struct
   int refcount;
   char *path;
   char *type;
-  char *name;
+  char *app_id;
+  char *instance_id;
   DBusVariant *metadata;
   BusContext *context;
   BusContainers *containers;
@@ -339,7 +340,8 @@ bus_container_server_unref (BusContainerServer *self)
       dbus_connection_unref (self->creator);
       dbus_free (self->path);
       dbus_free (self->type);
-      dbus_free (self->name);
+      dbus_free (self->app_id);
+      dbus_free (self->instance_id);
       dbus_free (self);
     }
 }
@@ -397,7 +399,8 @@ bus_container_server_new (BusContext *context,
 
   self->refcount = 1;
   self->type = NULL;
-  self->name = NULL;
+  self->app_id = NULL;
+  self->instance_id = NULL;
   self->metadata = NULL;
   self->context = bus_context_ref (context);
   self->containers = bus_containers_ref (containers);
@@ -511,7 +514,7 @@ new_connection_cb (DBusServer     *lower_level_server,
                        "Closing connection to container server "
                        "%s (%s \"%s\") because it would exceed resource limit "
                        "(max_connections_per_container=%d)",
-                       server->path, server->type, server->name, limit);
+                       server->path, server->type, server->app_id, limit);
       return;
     }
 
@@ -680,7 +683,8 @@ bus_containers_handle_add_server (DBusConnection *connection,
   DBusMessageIter writer;
   DBusMessageIter array_writer;
   const char *type;
-  const char *name;
+  const char *app_id;
+  const char *instance_id;
   const char *path;
   BusContainerServer *server = NULL;
   BusContext *context;
@@ -732,7 +736,7 @@ bus_containers_handle_add_server (DBusConnection *connection,
     }
 
   /* We already checked this in bus_driver_handle_message() */
-  _dbus_assert (dbus_message_has_signature (message, "ssa{sv}a{sv}"));
+  _dbus_assert (dbus_message_has_signature (message, "sssa{sv}a{sv}"));
 
   /* Argument 0: Container type */
   if (!dbus_message_iter_init (message, &iter))
@@ -753,18 +757,29 @@ bus_containers_handle_add_server (DBusConnection *connection,
       goto fail;
     }
 
-  /* Argument 1: Name as defined by container manager */
+  /* Argument 1: app-ID as defined by container manager */
   if (!dbus_message_iter_next (&iter))
     _dbus_assert_not_reached ("Message type was already checked");
 
   _dbus_assert (dbus_message_iter_get_arg_type (&iter) == DBUS_TYPE_STRING);
-  dbus_message_iter_get_basic (&iter, &name);
-  server->name = _dbus_strdup (name);
+  dbus_message_iter_get_basic (&iter, &app_id);
+  server->app_id = _dbus_strdup (app_id);
 
-  if (server->name == NULL)
+  if (server->app_id == NULL)
     goto oom;
 
-  /* Argument 2: Metadata as defined by container manager */
+  /* Argument 2: instance-ID as defined by container manager */
+  if (!dbus_message_iter_next (&iter))
+    _dbus_assert_not_reached ("Message type was already checked");
+
+  _dbus_assert (dbus_message_iter_get_arg_type (&iter) == DBUS_TYPE_STRING);
+  dbus_message_iter_get_basic (&iter, &instance_id);
+  server->instance_id = _dbus_strdup (instance_id);
+
+  if (server->instance_id == NULL)
+    goto oom;
+
+  /* Argument 3: Metadata as defined by container manager */
   if (!dbus_message_iter_next (&iter))
     _dbus_assert_not_reached ("Message type was already checked");
 
@@ -781,7 +796,8 @@ bus_containers_handle_add_server (DBusConnection *connection,
    * int value. */
   metadata_size = _dbus_variant_get_length (server->metadata) +
                   (int) strlen (type) +
-                  (int) strlen (name);
+                  (int) strlen (app_id) +
+                  (int) strlen (instance_id);
   limit = bus_context_get_max_container_metadata_bytes (context);
 
   if (metadata_size > limit)
@@ -801,7 +817,7 @@ bus_containers_handle_add_server (DBusConnection *connection,
       goto fail;
     }
 
-  /* Argument 3: Named parameters */
+  /* Argument 4: Named parameters */
   if (!dbus_message_iter_next (&iter))
     _dbus_assert_not_reached ("Message type was already checked");
 
@@ -1216,7 +1232,8 @@ bus_containers_handle_get_connection_info (DBusConnection *caller,
 
   if (!dbus_message_append_args (reply,
                                  DBUS_TYPE_STRING, &server->type,
-                                 DBUS_TYPE_STRING, &server->name,
+                                 DBUS_TYPE_STRING, &server->app_id,
+                                 DBUS_TYPE_STRING, &server->instance_id,
                                  DBUS_TYPE_INVALID))
     goto oom;
 
@@ -1300,7 +1317,8 @@ bus_containers_handle_get_server_info (DBusConnection *connection,
 
   if (!dbus_message_append_args (reply,
                                  DBUS_TYPE_STRING, &server->type,
-                                 DBUS_TYPE_STRING, &server->name,
+                                 DBUS_TYPE_STRING, &server->app_id,
+                                 DBUS_TYPE_STRING, &server->instance_id,
                                  DBUS_TYPE_INVALID))
     goto oom;
 
@@ -1452,7 +1470,8 @@ dbus_bool_t
 bus_containers_connection_is_contained (DBusConnection *connection,
                                         const char **path,
                                         const char **type,
-                                        const char **name)
+                                        const char **app_id,
+                                        const char **instance_id)
 {
 #ifdef DBUS_ENABLE_CONTAINERS
   BusContainerServer *server;
@@ -1467,8 +1486,11 @@ bus_containers_connection_is_contained (DBusConnection *connection,
       if (type != NULL)
         *type = server->type;
 
-      if (name != NULL)
-        *name = server->name;
+      if (app_id != NULL)
+        *app_id = server->app_id;
+
+      if (instance_id != NULL)
+        *instance_id = server->instance_id;
 
       return TRUE;
     }

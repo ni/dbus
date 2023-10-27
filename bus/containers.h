@@ -66,7 +66,8 @@ void        bus_containers_remove_connection          (BusContainers *self,
 dbus_bool_t bus_containers_connection_is_contained    (DBusConnection *connection,
                                                        const char **path,
                                                        const char **type,
-                                                       const char **name);
+                                                       const char **app_id,
+                                                       const char **instance_id);
 
 static inline void
 bus_clear_containers (BusContainers **containers_p)

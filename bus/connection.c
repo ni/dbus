@@ -595,7 +595,8 @@ cache_peer_loginfo_string (BusConnectionData *d,
   dbus_bool_t prev_added;
   const char *container = NULL;
   const char *container_type = NULL;
-  const char *container_name = NULL;
+  const char *app_id = NULL;
+  const char *instance_id = NULL;
   DBusCredentials *credentials;
 
   if (!_dbus_string_init (&loginfo_buf))
@@ -679,7 +680,8 @@ cache_peer_loginfo_string (BusConnectionData *d,
   /* This does have to come from the connection, not the credentials */
   if (bus_containers_connection_is_contained (connection, &container,
                                               &container_type,
-                                              &container_name))
+                                              &app_id,
+                                              &instance_id))
     {
       dbus_bool_t did_append;
 
@@ -690,10 +692,11 @@ cache_peer_loginfo_string (BusConnectionData *d,
         }
 
       did_append = _dbus_string_append_printf (&loginfo_buf,
-                                               "container=%s %s=\"%s\")",
+                                               "container=%s %s=\"%s\" inst=\"%s\")",
                                                container,
                                                container_type,
-                                               container_name);
+                                               app_id,
+                                               instance_id);
       if (!did_append)
         goto oom;
       else
@@ -2485,7 +2488,7 @@ bus_transaction_send (BusTransaction *transaction,
 
       if (sender == NULL ||
           !bus_containers_connection_is_contained (sender, &path,
-                                                   NULL, NULL))
+                                                   NULL, NULL, NULL))
         path = "/";
 
       if (!dbus_message_set_container_path (message, path))

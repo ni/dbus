@@ -118,7 +118,7 @@ bus_driver_check_caller_is_not_container (DBusConnection *connection,
                                           DBusMessage    *message,
                                           DBusError      *error)
 {
-  if (bus_containers_connection_is_contained (connection, NULL, NULL, NULL))
+  if (bus_containers_connection_is_contained (connection, NULL, NULL, NULL, NULL))
     {
       const char *method = dbus_message_get_member (message);
 
@@ -2041,7 +2041,7 @@ bus_driver_fill_connection_credentials (DBusCredentials *credentials,
 
   /* This has to come from the connection, not the credentials */
   if (peer_conn != NULL &&
-      bus_containers_connection_is_contained (peer_conn, &path, NULL, NULL))
+      bus_containers_connection_is_contained (peer_conn, &path, NULL, NULL, NULL))
     {
       if (!_dbus_asv_add_object_path (asv_iter,
                                       DBUS_INTERFACE_CONTAINERS1 ".Path",
@@ -2655,16 +2655,16 @@ static const MessageHandler introspectable_message_handlers[] = {
 
 #ifdef DBUS_ENABLE_CONTAINERS
 static const MessageHandler containers_message_handlers[] = {
-  { "AddServer", "ssa{sv}a{sv}", "oays", bus_containers_handle_add_server,
+  { "AddServer", "sssa{sv}a{sv}", "oays", bus_containers_handle_add_server,
     METHOD_FLAG_NO_CONTAINERS },
   { "StopServer", "o", "", bus_containers_handle_stop_server,
     METHOD_FLAG_NO_CONTAINERS },
   { "StopListening", "o", "", bus_containers_handle_stop_listening,
     METHOD_FLAG_NO_CONTAINERS },
-  { "GetConnectionInfo", "s", "oa{sv}ssa{sv}",
+  { "GetConnectionInfo", "s", "oa{sv}sssa{sv}",
     bus_containers_handle_get_connection_info,
     METHOD_FLAG_NONE },
-  { "GetServerInfo", "o", "a{sv}ssa{sv}", bus_containers_handle_get_server_info,
+  { "GetServerInfo", "o", "a{sv}sssa{sv}", bus_containers_handle_get_server_info,
     METHOD_FLAG_NONE },
   { "RequestHeader", "", "", bus_containers_handle_request_header,
     METHOD_FLAG_NONE },

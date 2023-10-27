@@ -378,7 +378,8 @@ test_basic (Fixture *f,
   GVariantDict dict;
   const gchar *confined_unique_name;
   const gchar *path_from_query;
-  const gchar *name;
+  const gchar *app_id;
+  const gchar *instance_id;
   const gchar *name_owner;
   const gchar *type;
   guint32 uid;
@@ -391,9 +392,10 @@ test_basic (Fixture *f,
   if (f->skip)
     return;
 
-  parameters = g_variant_new ("(ssa{sv}a{sv})",
+  parameters = g_variant_new ("(sssa{sv}a{sv})",
                               "com.example.NotFlatpak",
                               "sample-app",
+                              "sample-instance",
                               NULL, /* no metadata */
                               NULL); /* no named arguments */
   if (!add_container_server (f, g_steal_pointer (&parameters)))
@@ -517,16 +519,17 @@ test_basic (Fixture *f,
                                   G_DBUS_CALL_FLAGS_NONE, -1, NULL, &f->error);
   g_assert_no_error (f->error);
   g_assert_nonnull (tuple);
-  g_assert_cmpstr (g_variant_get_type_string (tuple), ==, "(oa{sv}ssa{sv})");
-  g_variant_get (tuple, "(&o@a{sv}&s&s@a{sv})",
-                 &path_from_query, &creator, &type, &name, &asv);
+  g_assert_cmpstr (g_variant_get_type_string (tuple), ==, "(oa{sv}sssa{sv})");
+  g_variant_get (tuple, "(&o@a{sv}&s&s&s@a{sv})",
+                 &path_from_query, &creator, &type, &app_id, &instance_id, &asv);
   g_assert_cmpstr (path_from_query, ==, f->server_path);
   g_variant_dict_init (&dict, creator);
   g_assert_true (g_variant_dict_lookup (&dict, "UnixUserID", "u", &uid));
   g_assert_cmpuint (uid, ==, _dbus_getuid ());
   g_variant_dict_clear (&dict);
   g_assert_cmpstr (type, ==, "com.example.NotFlatpak");
-  g_assert_cmpstr (name, ==, "sample-app");
+  g_assert_cmpstr (app_id, ==, "sample-app");
+  g_assert_cmpstr (instance_id, ==, "sample-instance");
   /* Trivial case: the metadata a{sv} is empty */
   g_assert_cmpuint (g_variant_n_children (asv), ==, 0);
   g_clear_pointer (&asv, g_variant_unref);
@@ -539,14 +542,16 @@ test_basic (Fixture *f,
                                   G_DBUS_CALL_FLAGS_NONE, -1, NULL, &f->error);
   g_assert_no_error (f->error);
   g_assert_nonnull (tuple);
-  g_assert_cmpstr (g_variant_get_type_string (tuple), ==, "(a{sv}ssa{sv})");
-  g_variant_get (tuple, "(@a{sv}&s&s@a{sv})", &creator, &type, &name, &asv);
+  g_assert_cmpstr (g_variant_get_type_string (tuple), ==, "(a{sv}sssa{sv})");
+  g_variant_get (tuple, "(@a{sv}&s&s&s@a{sv})",
+                 &creator, &type, &app_id, &instance_id, &asv);
   g_variant_dict_init (&dict, creator);
   g_assert_true (g_variant_dict_lookup (&dict, "UnixUserID", "u", &uid));
   g_assert_cmpuint (uid, ==, _dbus_getuid ());
   g_variant_dict_clear (&dict);
   g_assert_cmpstr (type, ==, "com.example.NotFlatpak");
-  g_assert_cmpstr (name, ==, "sample-app");
+  g_assert_cmpstr (app_id, ==, "sample-app");
+  g_assert_cmpstr (instance_id, ==, "sample-instance");
   /* Trivial case: the metadata a{sv} is empty */
   g_assert_cmpuint (g_variant_n_children (asv), ==, 0);
   g_clear_pointer (&asv, g_variant_unref);
@@ -582,9 +587,10 @@ test_wrong_uid (Fixture *f,
   if (f->skip)
     return;
 
-  parameters = g_variant_new ("(ssa{sv}a{sv})",
+  parameters = g_variant_new ("(sssa{sv}a{sv})",
                               "com.example.NotFlatpak",
                               "sample-app",
+                              "instance1",
                               NULL, /* no metadata */
                               NULL); /* no named arguments */
   if (!add_container_server (f, g_steal_pointer (&parameters)))
@@ -613,7 +619,8 @@ test_wrong_uid (Fixture *f,
 
 /*
  * Test for non-trivial metadata: assert that the metadata a{sv} is
- * carried through correctly, and that the app name is allowed to be empty.
+ * carried through correctly, and that the app/instance IDs are
+ * allowed to be empty.
  */
 static void
 test_metadata (Fixture *f,
@@ -627,7 +634,8 @@ test_metadata (Fixture *f,
   GVariantDict dict;
   const gchar *confined_unique_name;
   const gchar *path_from_query;
-  const gchar *name;
+  const gchar *app_id;
+  const gchar *instance_id;
   const gchar *type;
   guint32 uid;
   guint u;
@@ -642,9 +650,11 @@ test_metadata (Fixture *f,
   g_variant_dict_insert (&dict, "IsCrepuscular", "b", TRUE);
   g_variant_dict_insert (&dict, "NChildren", "u", 2);
 
-  parameters = g_variant_new ("(ss@a{sv}a{sv})",
+  parameters = g_variant_new ("(sss@a{sv}a{sv})",
                               "org.example.Springwatch",
-                              /* Verify that empty app names are OK */
+                              /* Verify that empty app IDs are OK */
+                              "",
+                              /* Verify that empty instance IDs are OK */
                               "",
                               g_variant_dict_end (&dict),
                               NULL); /* no named arguments */
@@ -688,16 +698,17 @@ test_metadata (Fixture *f,
                                   G_DBUS_CALL_FLAGS_NONE, -1, NULL, &f->error);
   g_assert_no_error (f->error);
   g_assert_nonnull (tuple);
-  g_assert_cmpstr (g_variant_get_type_string (tuple), ==, "(oa{sv}ssa{sv})");
-  g_variant_get (tuple, "(&o@a{sv}&s&s@a{sv})",
-                 &path_from_query, &creator, &type, &name, &asv);
+  g_assert_cmpstr (g_variant_get_type_string (tuple), ==, "(oa{sv}sssa{sv})");
+  g_variant_get (tuple, "(&o@a{sv}&s&s&s@a{sv})",
+                 &path_from_query, &creator, &type, &app_id, &instance_id, &asv);
   g_assert_cmpstr (path_from_query, ==, f->server_path);
   g_variant_dict_init (&dict, creator);
   g_assert_true (g_variant_dict_lookup (&dict, "UnixUserID", "u", &uid));
   g_assert_cmpuint (uid, ==, _dbus_getuid ());
   g_variant_dict_clear (&dict);
   g_assert_cmpstr (type, ==, "org.example.Springwatch");
-  g_assert_cmpstr (name, ==, "");
+  g_assert_cmpstr (app_id, ==, "");
+  g_assert_cmpstr (instance_id, ==, "");
   g_variant_dict_init (&dict, asv);
   g_assert_true (g_variant_dict_lookup (&dict, "NChildren", "u", &u));
   g_assert_cmpuint (u, ==, 2);
@@ -717,14 +728,16 @@ test_metadata (Fixture *f,
                                   G_DBUS_CALL_FLAGS_NONE, -1, NULL, &f->error);
   g_assert_no_error (f->error);
   g_assert_nonnull (tuple);
-  g_assert_cmpstr (g_variant_get_type_string (tuple), ==, "(a{sv}ssa{sv})");
-  g_variant_get (tuple, "(@a{sv}&s&s@a{sv})", &creator, &type, &name, &asv);
+  g_assert_cmpstr (g_variant_get_type_string (tuple), ==, "(a{sv}sssa{sv})");
+  g_variant_get (tuple, "(@a{sv}&s&s&s@a{sv})",
+                 &creator, &type, &app_id, &instance_id, &asv);
   g_variant_dict_init (&dict, creator);
   g_assert_true (g_variant_dict_lookup (&dict, "UnixUserID", "u", &uid));
   g_assert_cmpuint (uid, ==, _dbus_getuid ());
   g_variant_dict_clear (&dict);
   g_assert_cmpstr (type, ==, "org.example.Springwatch");
-  g_assert_cmpstr (name, ==, "");
+  g_assert_cmpstr (app_id, ==, "");
+  g_assert_cmpstr (instance_id, ==, "");
   g_variant_dict_init (&dict, asv);
   g_assert_true (g_variant_dict_lookup (&dict, "NChildren", "u", &u));
   g_assert_cmpuint (u, ==, 2);
@@ -789,9 +802,10 @@ test_stop_server (Fixture *f,
                                              &f->error);
   g_assert_no_error (f->error);
 
-  parameters = g_variant_new ("(ssa{sv}a{sv})",
+  parameters = g_variant_new ("(sssa{sv}a{sv})",
                               "com.example.NotFlatpak",
                               "sample-app",
+                              "",
                               NULL, /* no metadata */
                               NULL); /* no named arguments */
   if (!add_container_server (f, g_steal_pointer (&parameters)))
@@ -1211,9 +1225,10 @@ test_unsupported_parameter (Fixture *f,
                          "ThisArgumentIsntImplemented",
                          "b", FALSE);
 
-  parameters = g_variant_new ("(ssa{sv}@a{sv})",
+  parameters = g_variant_new ("(sssa{sv}@a{sv})",
                               "com.example.NotFlatpak",
                               "sample-app",
+                              "",
                               NULL, /* no metadata */
                               g_variant_dict_end (&named_argument_builder));
   tuple = g_dbus_proxy_call_sync (f->proxy, "AddServer",
@@ -1251,9 +1266,10 @@ test_invalid_type_name (Fixture *f,
                                     NULL, &f->error);
   g_assert_no_error (f->error);
 
-  parameters = g_variant_new ("(ssa{sv}a{sv})",
+  parameters = g_variant_new ("(sssa{sv}a{sv})",
                               "this is not a valid container type name",
                               "sample-app",
+                              "",
                               NULL, /* no metadata */
                               NULL); /* no named arguments */
   tuple = g_dbus_proxy_call_sync (f->proxy, "AddServer",
@@ -1286,9 +1302,10 @@ test_invalid_nesting (Fixture *f,
   if (f->skip)
     return;
 
-  parameters = g_variant_new ("(ssa{sv}a{sv})",
+  parameters = g_variant_new ("(sssa{sv}a{sv})",
                               "com.example.NotFlatpak",
                               "sample-app",
+                              "instance0",
                               NULL, /* no metadata */
                               NULL); /* no named arguments */
   if (!add_container_server (f, g_steal_pointer (&parameters)))
@@ -1310,9 +1327,10 @@ test_invalid_nesting (Fixture *f,
                                         &f->error);
   g_assert_no_error (f->error);
 
-  parameters = g_variant_new ("(ssa{sv}a{sv})",
+  parameters = g_variant_new ("(sssa{sv}a{sv})",
                               "com.example.NotFlatpak",
                               "inner-app",
+                              "instance1",
                               NULL, /* no metadata */
                               NULL); /* no named arguments */
   tuple = g_dbus_proxy_call_sync (nested_proxy, "AddServer",
@@ -1359,9 +1377,10 @@ test_max_containers (Fixture *f,
                                     NULL, &f->error);
   g_assert_no_error (f->error);
 
-  parameters = g_variant_new ("(ssa{sv}a{sv})",
+  parameters = g_variant_new ("(sssa{sv}a{sv})",
                               "com.example.NotFlatpak",
                               "sample-app",
+                              "instance1",
                               NULL, /* no metadata */
                               NULL); /* no named arguments */
   /* We will reuse this variant several times, so don't use floating refs */
@@ -1469,9 +1488,10 @@ test_max_connections_per_container (Fixture *f,
                                     NULL, &f->error);
   g_assert_no_error (f->error);
 
-  parameters = g_variant_new ("(ssa{sv}a{sv})",
+  parameters = g_variant_new ("(sssa{sv}a{sv})",
                               "com.example.NotFlatpak",
                               "sample-app",
+                              "",
                               NULL, /* no metadata */
                               NULL); /* no named arguments */
   /* We will reuse this variant several times, so don't use floating refs */
@@ -1619,9 +1639,10 @@ test_max_container_metadata_bytes (Fixture *f,
                                                     1));
 
   /* Floating reference, call_..._sync takes ownership */
-  parameters = g_variant_new ("(ss@a{sv}a{sv})",
+  parameters = g_variant_new ("(sss@a{sv}a{sv})",
                               "com.wasteheadquarters",
                               "Packt Like Sardines in a Crushd Tin Box",
+                              "",
                               g_variant_dict_end (&dict),
                               NULL); /* no named arguments */
 

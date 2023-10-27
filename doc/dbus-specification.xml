@@ -7279,7 +7279,8 @@
           As a method:
           <programlisting>
             AddServer (in STRING container_type,
-                       in STRING container_name,
+                       in STRING app_id,
+                       in STRING instance_id,
                        in DICT&lt;STRING,VARIANT&gt; metadata,
                        in DICT&lt;STRING,VARIANT&gt; named_arguments,
                        out OBJECT_PATH server_path,
@@ -7324,6 +7325,18 @@
                 </row>
                 <row>
                   <entry>2</entry>
+                  <entry>STRING</entry>
+                  <entry>
+                    Some unique identifier for a particular instance of an
+                    application or container, whose meaning is defined by the
+                    maintainers of the container type. If the container
+                    type does not have a concept of identifying or
+                    naming instances by a string,
+                    using the empty string here is suggested.
+                  </entry>
+                </row>
+                <row>
+                  <entry>3</entry>
                   <entry>DICT&lt;STRING,VARIANT&gt;</entry>
                   <entry>
                     Metadata describing the application or container, with the
@@ -7332,7 +7345,7 @@
                   </entry>
                 </row>
                 <row>
-                  <entry>3</entry>
+                  <entry>4</entry>
                   <entry>DICT&lt;STRING,VARIANT&gt;</entry>
                   <entry>
                     Additional arguments that extend this method.
@@ -7343,7 +7356,7 @@
                   </entry>
                 </row>
                 <row>
-                  <entry>4</entry>
+                  <entry>5</entry>
                   <entry>OBJECT_PATH</entry>
                   <entry>
                     An opaque object path identifying the new container
@@ -7351,7 +7364,7 @@
                   </entry>
                 </row>
                 <row>
-                  <entry>5</entry>
+                  <entry>6</entry>
                   <entry>ARRAY&lt;BYTE&gt;</entry>
                   <entry>
                     The absolute filesystem path of the resulting
@@ -7362,7 +7375,7 @@
                   </entry>
                 </row>
                 <row>
-                  <entry>6</entry>
+                  <entry>7</entry>
                   <entry>STRING</entry>
                   <entry>
                     A connectable D-Bus address, for example
@@ -7388,12 +7401,14 @@
         <para>
           Each call to this method creates a new
           <firstterm>container server</firstterm>, identified by an object
-          path. Even if the specified container type and name are the
-          same as for a pre-existing container server, each call
+          path. Even if the specified container type, app ID and instance ID
+          are the same as for a pre-existing container server, each call
           creates a new server with a new unique object path, because
           the new container server might represent a different
           version of the confined application with different
-          characteristics and restrictions. The message bus may provide
+          characteristics and restrictions (although in practice it is
+          expected that container managers are most likely to create one
+          server per instance ID). The message bus may provide
           an object at the given object path, but is not required to
           do so.
         </para>
@@ -7593,7 +7608,8 @@
                                out OBJECT_PATH server_path,
                                out DICT&lt;STRING,VARIANT&gt; creator,
                                out STRING container_type,
-                               out STRING container_name,
+                               out STRING app_id,
+                               out STRING instance_id,
                                out DICT&lt;STRING,VARIANT&gt; metadata)
           </programlisting>
           Message arguments:
@@ -7658,15 +7674,40 @@
                   <entry>4</entry>
                   <entry>STRING</entry>
                   <entry>
-                    Some unique identifier for an application or container,
+                    A unique identifier for an application or container,
                     whose meaning is defined by the maintainers of the
                     container type.
+                    For example, Flatpak would use a freedesktop.org app ID
+                    such as <literal>org.mozilla.firefox</literal>, but
+                    Snap might use a Snap app ID such as
+                    <literal>firefox</literal>.
                     This output parameter is controlled by the creator
                     of the per-container server.
+                    Depending on the container type, it might be possible
+                    to look up further metadata for the application in a
+                    container-type-specific way.
                   </entry>
                 </row>
                 <row>
                   <entry>5</entry>
+                  <entry>STRING</entry>
+                  <entry>
+                    A unique identifier for a particular instance of an
+                    application or container, whose meaning is defined by
+                    the maintainers of the container type.
+                    For example, Flatpak would use the same numeric
+                    instance ID that is shown by <literal>flatpak ps</literal>.
+                    This output parameter is controlled by the creator
+                    of the per-container server.
+                    Depending on the container type, it might be possible
+                    to look up further metadata for the instance in a
+                    container-type-specific way, for example by reading
+                    <filename>$XDG_RUNTIME_DIR/.flatpak/$INSTANCE/info</filename>
+                    for a Flatpak app.
+                  </entry>
+                </row>
+                <row>
+                  <entry>6</entry>
                   <entry>DICT&lt;STRING,VARIANT&gt;</entry>
                   <entry>
                     Metadata describing the application or container, with the
@@ -7710,7 +7751,8 @@
             GetServerInfo (in OBJECT_PATH server_path,
                            out DICT&lt;STRING,VARIANT&gt; creator,
                            out STRING container_type,
-                           out STRING container_name,
+                           out STRING app_id,
+                           out STRING instance_id,
                            out DICT&lt;STRING,VARIANT&gt; metadata)
           </programlisting>
           Message arguments:
@@ -7774,6 +7816,19 @@
                 </row>
                 <row>
                   <entry>4</entry>
+                  <entry>STRING</entry>
+                  <entry>
+                    Some unique identifier for a particular instance of an
+                    application or container,
+                    the same as the corresponding parameter in
+                    <link linkend="bus-messages-containers1-get-connection-info"
+                      >GetConnectionInfo</link>.
+                    This output parameter is controlled by the creator
+                    of the per-container server.
+                  </entry>
+                </row>
+                <row>
+                  <entry>5</entry>
                   <entry>DICT&lt;STRING,VARIANT&gt;</entry>
                   <entry>
                     Metadata describing the application or container,
