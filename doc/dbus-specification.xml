@@ -7339,9 +7339,10 @@
                   <entry>3</entry>
                   <entry>DICT&lt;STRING,VARIANT&gt;</entry>
                   <entry>
-                    Metadata describing the application or container, with the
-                    keys and values defined by the maintainers of the container
-                    type.
+                    Metadata describing the application or container.
+                    All keys and values are reserved for future standardization,
+                    either in this specification or in a separate
+                    freedesktop.org specification referenced by this one.
                   </entry>
                 </row>
                 <row>
@@ -7710,9 +7711,10 @@
                   <entry>6</entry>
                   <entry>DICT&lt;STRING,VARIANT&gt;</entry>
                   <entry>
-                    Metadata describing the application or container, with the
-                    keys and values defined by the maintainers of the container
-                    type.
+                    Metadata describing the application or container.
+                    All keys and values are reserved for future standardization,
+                    either in this specification or in a separate
+                    freedesktop.org specification referenced by this one.
                     This output parameter is controlled by the creator
                     of the per-container server.
                   </entry>
