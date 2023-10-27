@@ -7621,7 +7621,8 @@
                   <entry>OBJECT_PATH</entry>
                   <entry>
                     The opaque object path that was returned from the
-                    <literal>AddServer</literal> method, identifying a
+                    <link linkend="bus-messages-containers1-add-server"
+                      >AddServer</link> method, identifying a
                     per-container server.
                     This output parameter is produced by the message bus.
                   </entry>
@@ -7751,10 +7752,10 @@
                   <entry>STRING</entry>
                   <entry>
                     Reversed domain name identifying a container
-                    manager or container technology, as passed to the
-                    <literal>AddServer</literal> method, such as
-                    <literal>org.flatpak</literal> or
-                    <literal>io.snapcraft</literal>.
+                    manager or container technology,
+                    the same as the corresponding parameter in
+                    <link linkend="bus-messages-containers1-get-connection-info"
+                      >GetConnectionInfo</link>.
                     This output parameter is controlled by the creator
                     of the per-container server.
                   </entry>
@@ -7764,8 +7765,9 @@
                   <entry>STRING</entry>
                   <entry>
                     Some unique identifier for an application or container,
-                    whose meaning is defined by the maintainers of the
-                    container type.
+                    the same as the corresponding parameter in
+                    <link linkend="bus-messages-containers1-get-connection-info"
+                      >GetConnectionInfo</link>.
                     This output parameter is controlled by the creator
                     of the per-container server.
                   </entry>
@@ -7774,9 +7776,10 @@
                   <entry>4</entry>
                   <entry>DICT&lt;STRING,VARIANT&gt;</entry>
                   <entry>
-                    Metadata describing the application or container, with the
-                    keys and values defined by the maintainers of the container
-                    type.
+                    Metadata describing the application or container,
+                    the same as the corresponding parameter in
+                    <link linkend="bus-messages-containers1-get-connection-info"
+                      >GetConnectionInfo</link>.
                     This output parameter is controlled by the creator
                     of the per-container server.
                   </entry>
