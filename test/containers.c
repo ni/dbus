@@ -306,7 +306,9 @@ test_get_supported_arguments (Fixture *f,
  */
 static gboolean
 add_container_server (Fixture *f,
-                      GVariant *parameters)
+                      GVariant *parameters,
+                      GUnixFDList *fds,
+                      GUnixFDList **fds_out)
 {
   GVariant *tuple;
   GVariant *named_results;
@@ -325,8 +327,29 @@ add_container_server (Fixture *f,
   g_test_message ("Calling AddServer%s...", stringified_args);
   g_free (stringified_args);
 
-  tuple = g_dbus_proxy_call_sync (f->proxy, "AddServer", parameters,
-                                  G_DBUS_CALL_FLAGS_NONE, -1, NULL, &f->error);
+  if (fds != NULL || fds_out != NULL)
+    {
+      if (fds != NULL)
+        g_test_message ("Sending %d fds", g_unix_fd_list_get_length (fds));
+
+      if (fds_out != NULL)
+        g_test_message ("Expecting to receive fds in result");
+
+      tuple = g_dbus_proxy_call_with_unix_fd_list_sync (f->proxy,
+                                                        "AddServer",
+                                                        parameters,
+                                                        G_DBUS_CALL_FLAGS_NONE,
+                                                        -1,
+                                                        fds,
+                                                        fds_out,
+                                                        NULL,
+                                                        &f->error);
+    }
+  else
+    {
+      tuple = g_dbus_proxy_call_sync (f->proxy, "AddServer", parameters,
+                                      G_DBUS_CALL_FLAGS_NONE, -1, NULL, &f->error);
+    }
 
   /* For root, the sockets go in /run/dbus/containers, which we rely on
    * system infrastructure to create; so it's OK for AddServer to fail
@@ -416,7 +439,7 @@ test_basic (Fixture *f,
                               "sample-instance",
                               NULL, /* no metadata */
                               NULL); /* no named arguments */
-  if (!add_container_server (f, g_steal_pointer (&parameters)))
+  if (!add_container_server (f, g_steal_pointer (&parameters), NULL, NULL))
     return;
 
   g_test_message ("Connecting to %s...", f->socket_dbus_address);
@@ -611,7 +634,7 @@ test_wrong_uid (Fixture *f,
                               "instance1",
                               NULL, /* no metadata */
                               NULL); /* no named arguments */
-  if (!add_container_server (f, g_steal_pointer (&parameters)))
+  if (!add_container_server (f, g_steal_pointer (&parameters), NULL, NULL))
     return;
 
   g_test_message ("Connecting to %s...", f->socket_dbus_address);
@@ -676,7 +699,7 @@ test_metadata (Fixture *f,
                               "",
                               g_variant_dict_end (&dict),
                               NULL); /* no named arguments */
-  if (!add_container_server (f, g_steal_pointer (&parameters)))
+  if (!add_container_server (f, g_steal_pointer (&parameters), NULL, NULL))
     return;
 
   g_test_message ("Connecting to %s...", f->socket_dbus_address);
@@ -798,8 +821,10 @@ test_stop_server (Fixture *f,
   GDBusProxy *attacker_proxy;
   GSocket *client_socket;
   GSocketAddress *socket_address;
+  GUnixFDList *fds = NULL;
   GVariant *tuple;
   GVariant *parameters;
+  GVariantDict named_argument_builder;
   gchar *error_name;
   const gchar *confined_unique_name;
   const gchar *name_owner;
@@ -820,13 +845,16 @@ test_stop_server (Fixture *f,
                                              &f->error);
   g_assert_no_error (f->error);
 
-  parameters = g_variant_new ("(sssa{sv}a{sv})",
+  g_variant_dict_init (&named_argument_builder, NULL);
+  fds = g_unix_fd_list_new ();
+
+  parameters = g_variant_new ("(sssa{sv}@a{sv})",
                               "com.example.NotFlatpak",
                               "sample-app",
                               "",
                               NULL, /* no metadata */
-                              NULL); /* no named arguments */
-  if (!add_container_server (f, g_steal_pointer (&parameters)))
+                              g_variant_dict_end (&named_argument_builder));
+  if (!add_container_server (f, g_steal_pointer (&parameters), fds, NULL))
     return;
 
   socket_address = g_unix_socket_address_new (f->socket_path);
@@ -1326,7 +1354,7 @@ test_invalid_nesting (Fixture *f,
                               "instance0",
                               NULL, /* no metadata */
                               NULL); /* no named arguments */
-  if (!add_container_server (f, g_steal_pointer (&parameters)))
+  if (!add_container_server (f, g_steal_pointer (&parameters), NULL, NULL))
     return;
 
   g_test_message ("Connecting to %s...", f->socket_dbus_address);
