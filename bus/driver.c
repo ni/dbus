@@ -2655,7 +2655,7 @@ static const MessageHandler introspectable_message_handlers[] = {
 
 #ifdef DBUS_ENABLE_CONTAINERS
 static const MessageHandler containers_message_handlers[] = {
-  { "AddServer", "sssa{sv}a{sv}", "oays", bus_containers_handle_add_server,
+  { "AddServer", "sssa{sv}a{sv}", "oa{sv}", bus_containers_handle_add_server,
     METHOD_FLAG_NO_CONTAINERS },
   { "StopServer", "o", "", bus_containers_handle_stop_server,
     METHOD_FLAG_NO_CONTAINERS },

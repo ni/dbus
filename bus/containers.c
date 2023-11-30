@@ -35,6 +35,7 @@
 
 #include <sys/types.h>
 
+#include "dbus/dbus-asv-util.h"
 #include "dbus/dbus-hash.h"
 #include "dbus/dbus-message-internal.h"
 #include "dbus/dbus-sysdeps-unix.h"
@@ -680,8 +681,8 @@ bus_containers_handle_add_server (DBusConnection *connection,
   BusContainerCreatorData *creator_data;
   DBusMessageIter iter;
   DBusMessageIter dict_iter;
-  DBusMessageIter writer;
-  DBusMessageIter array_writer;
+  DBusMessageIter writer = DBUS_MESSAGE_ITER_INIT_CLOSED;
+  DBusMessageIter asv_writer = DBUS_MESSAGE_ITER_INIT_CLOSED;
   const char *type;
   const char *app_id;
   const char *instance_id;
@@ -952,27 +953,21 @@ bus_containers_handle_add_server (DBusConnection *connection,
 
   dbus_message_iter_init_append (reply, &writer);
 
-  if (!dbus_message_iter_open_container (&writer, DBUS_TYPE_ARRAY,
-                                         DBUS_TYPE_BYTE_AS_STRING,
-                                         &array_writer))
+  if (!dbus_message_iter_open_container (&writer, DBUS_TYPE_ARRAY, "{sv}",
+                                         &asv_writer))
     goto oom;
 
-  if (!dbus_message_iter_append_fixed_array (&array_writer, DBUS_TYPE_BYTE,
-                                             &path, strlen (path) + 1))
-    {
-      dbus_message_iter_abandon_container (&writer, &array_writer);
-      goto oom;
-    }
-
-  if (!dbus_message_iter_close_container (&writer, &array_writer))
+  if (!_dbus_asv_add_string (&asv_writer, "Address", address))
     goto oom;
 
-  if (!dbus_message_append_args (reply,
-                                 DBUS_TYPE_STRING, &address,
-                                 DBUS_TYPE_INVALID))
+  if (!_dbus_asv_add_byte_array (&asv_writer, "SocketPath",
+                                 path, strlen (path) + 1))
     goto oom;
 
-  _dbus_assert (dbus_message_has_signature (reply, "oays"));
+  if (!dbus_message_iter_close_container (&writer, &asv_writer))
+    goto oom;
+
+  _dbus_assert (dbus_message_has_signature (reply, "oa{sv}"));
 
   if (! bus_transaction_send_from_driver (transaction, connection, reply))
     goto oom;
@@ -988,6 +983,8 @@ oom:
   BUS_SET_OOM (error);
   /* fall through */
 fail:
+  dbus_message_iter_abandon_container_if_open (&writer, &asv_writer);
+
   if (server != NULL)
     bus_container_server_stop_listening (server);
 

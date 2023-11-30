@@ -7284,8 +7284,7 @@
                        in DICT&lt;STRING,VARIANT&gt; metadata,
                        in DICT&lt;STRING,VARIANT&gt; named_arguments,
                        out OBJECT_PATH server_path,
-                       out ARRAY&lt;BYTE&gt; socket_path,
-                       out STRING connectable_address)
+                       out DICT&lt;STRING,VARIANT&gt; results)
           </programlisting>
           Message arguments:
           <informaltable>
@@ -7366,13 +7365,10 @@
                 </row>
                 <row>
                   <entry>6</entry>
-                  <entry>ARRAY&lt;BYTE&gt;</entry>
+                  <entry>DICT&lt;STRING,VARIANT&gt;</entry>
                   <entry>
-                    The absolute filesystem path of the resulting
-                    <literal>AF_UNIX</literal> socket, followed by a single
-                    zero (nul) byte, for example
-                    <literal>/run/user/1000/dbus-12345vwxyz\x00</literal>
-                    where \x00 represents the terminating zero byte.
+                    Details of the container-specific server that was
+                    created (see below).
                   </entry>
                 </row>
                 <row>
@@ -7438,13 +7434,64 @@
         </para>
 
         <para>
+          Keys in the returned result dictionary not containing "." are defined
+          by this specification. Bus daemon implementors wishing to emit
+          information not mentioned in this document should use keys
+          containing "." and starting with a reversed domain name.
+          Additional keys may be added to the result at any time, and
+          callers must accept and ignore unknown keys in this dictionary.
+        </para>
+
+        <para>
+          The defined keys for the result dictionary are:
+          <informaltable>
+            <tgroup cols="3">
+              <thead>
+                <row>
+                  <entry>Key</entry>
+                  <entry>Value type</entry>
+                  <entry>Value</entry>
+                </row>
+              </thead>
+              <tbody>
+                <row>
+                  <entry>Address</entry>
+                  <entry>STRING</entry>
+                  <entry>
+                    A connectable D-Bus address, for example
+                    <literal>unix:path=/run/user/1000/dbus-12345vwxyz</literal>.
+                  </entry>
+                </row>
+                <row>
+                  <entry>SocketPath</entry>
+                  <entry>ARRAY of BYTE</entry>
+                  <entry>
+                    The absolute filesystem path of the resulting
+                    <literal>AF_UNIX</literal> socket, followed by a single
+                    zero (nul) byte, for example
+                    <literal>/run/user/1000/dbus-12345vwxyz\x00</literal>
+                    where \x00 represents the terminating zero byte.
+                  </entry>
+                </row>
+              </tbody>
+            </tgroup>
+          </informaltable>
+         </para>
+
+        <para>
           In the most basic form of a call to this method, the new server
           socket is an <literal>AF_UNIX</literal> socket at a path chosen
-          by the message bus and returned from the method. Future versions
-          of this specification are likely to provide a way for the
-          message bus implementation to receive a socket from the caller
-          and arrange for it to listen for connections, using the named
-          arguments dictionary.
+          by the message bus and returned from the method.
+          When operating in this way, each successful call will return a
+          result dictionary containing both <literal>Address</literal> and
+          <literal>SocketPath</literal>.
+          Callers may use whichever of those members is more convenient.
+          If a future version of this specification adds a mechanism to
+          request that the server listens in some way that makes these two
+          members inapplicable, for example receiving a socket from the
+          caller in the named arguments dictionary via file descriptor passing
+          and arranging for it to listen for connections, then those members
+          will be omitted from the result dictionary.
         </para>
 
         <para>

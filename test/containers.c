@@ -309,7 +309,9 @@ add_container_server (Fixture *f,
                       GVariant *parameters)
 {
   GVariant *tuple;
+  GVariant *named_results;
   GStatBuf stat_buf;
+  gboolean found;
 
   f->proxy = g_dbus_proxy_new_sync (f->unconfined_conn,
                                     G_DBUS_PROXY_FLAGS_DO_NOT_LOAD_PROPERTIES,
@@ -339,22 +341,30 @@ add_container_server (Fixture *f,
   g_assert_no_error (f->error);
   g_assert_nonnull (tuple);
 
-  g_assert_cmpstr (g_variant_get_type_string (tuple), ==, "(oays)");
-  g_variant_get (tuple, "(o^ays)", &f->server_path, &f->socket_path,
-                 &f->socket_dbus_address);
+  g_assert_cmpstr (g_variant_get_type_string (tuple), ==, "(oa{sv})");
+  g_variant_get (tuple, "(o@a{sv})", &f->server_path, &named_results);
+  g_assert_nonnull (f->server_path);
+  g_assert_true (g_variant_is_object_path (f->server_path));
+
+  found = g_variant_lookup (named_results, "Address",
+                            "s", &f->socket_dbus_address);
+  g_assert_true (found);
+  g_assert_nonnull (f->socket_dbus_address);
   g_assert_true (g_str_has_prefix (f->socket_dbus_address, "unix:"));
   g_assert_null (strchr (f->socket_dbus_address, ';'));
   g_assert_null (strchr (f->socket_dbus_address + strlen ("unix:"), ':'));
-  g_clear_pointer (&tuple, g_variant_unref);
 
-  g_assert_nonnull (f->server_path);
-  g_assert_true (g_variant_is_object_path (f->server_path));
+  found = g_variant_lookup (named_results, "SocketPath",
+                            "^ay", &f->socket_path);
+  g_assert_true (found);
   g_assert_nonnull (f->socket_path);
   g_assert_true (g_path_is_absolute (f->socket_path));
-  g_assert_nonnull (f->socket_dbus_address);
   g_assert_cmpstr (g_stat (f->socket_path, &stat_buf) == 0 ? NULL :
                    g_strerror (errno), ==, NULL);
   g_assert_cmpuint ((stat_buf.st_mode & S_IFMT), ==, S_IFSOCK);
+
+  g_clear_pointer (&named_results, g_variant_unref);
+  g_clear_pointer (&tuple, g_variant_unref);
   return TRUE;
 }
 #endif
@@ -1394,7 +1404,7 @@ test_max_containers (Fixture *f,
                                       NULL, &f->error);
       g_assert_no_error (f->error);
       g_assert_nonnull (tuple);
-      g_variant_get (tuple, "(o^ays)", &placeholders[i], NULL, NULL);
+      g_variant_get (tuple, "(o@a{sv})", &placeholders[i], NULL);
       g_variant_unref (tuple);
       g_test_message ("Placeholder server at %s", placeholders[i]);
     }
@@ -1475,7 +1485,6 @@ test_max_connections_per_container (Fixture *f,
    * limit-containers.conf */
   GSocket *placeholders[G_N_ELEMENTS (socket_paths) * 3] = { NULL };
   GVariant *parameters;
-  GVariant *tuple;
   guint i;
 
   if (f->skip)
@@ -1499,13 +1508,25 @@ test_max_connections_per_container (Fixture *f,
 
   for (i = 0; i < G_N_ELEMENTS (socket_paths); i++)
     {
+      GVariant *tuple;
+      GVariant *named_results;
+      gboolean found;
+
       tuple = g_dbus_proxy_call_sync (f->proxy, "AddServer",
                                       parameters, G_DBUS_CALL_FLAGS_NONE, -1,
                                       NULL, &f->error);
       g_assert_no_error (f->error);
       g_assert_nonnull (tuple);
-      g_variant_get (tuple, "(o^ays)", NULL, &socket_paths[i],
-                     &dbus_addresses[i]);
+      g_variant_get (tuple, "(o@a{sv})", NULL, &named_results);
+
+      found = g_variant_lookup (named_results, "Address",
+                                "s", &dbus_addresses[i]);
+      g_assert_true (found);
+      found = g_variant_lookup (named_results, "SocketPath",
+                                "^ay", &socket_paths[i]);
+      g_assert_true (found);
+
+      g_variant_unref (named_results);
       g_variant_unref (tuple);
       socket_addresses[i] = g_unix_socket_address_new (socket_paths[i]);
       g_test_message ("Server #%u at %s", i, socket_paths[i]);
