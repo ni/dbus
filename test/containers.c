@@ -312,6 +312,7 @@ add_container_server (Fixture *f,
   GVariant *named_results;
   GStatBuf stat_buf;
   gboolean found;
+  gchar *stringified_args;
 
   f->proxy = g_dbus_proxy_new_sync (f->unconfined_conn,
                                     G_DBUS_PROXY_FLAGS_DO_NOT_LOAD_PROPERTIES,
@@ -320,7 +321,10 @@ add_container_server (Fixture *f,
                                     NULL, &f->error);
   g_assert_no_error (f->error);
 
-  g_test_message ("Calling AddServer...");
+  stringified_args = g_variant_print (parameters, TRUE);
+  g_test_message ("Calling AddServer%s...", stringified_args);
+  g_free (stringified_args);
+
   tuple = g_dbus_proxy_call_sync (f->proxy, "AddServer", parameters,
                                   G_DBUS_CALL_FLAGS_NONE, -1, NULL, &f->error);
 
@@ -340,6 +344,10 @@ add_container_server (Fixture *f,
 
   g_assert_no_error (f->error);
   g_assert_nonnull (tuple);
+
+  stringified_args = g_variant_print (tuple, TRUE);
+  g_test_message ("-> %s", stringified_args);
+  g_free (stringified_args);
 
   g_assert_cmpstr (g_variant_get_type_string (tuple), ==, "(oa{sv})");
   g_variant_get (tuple, "(o@a{sv})", &f->server_path, &named_results);
