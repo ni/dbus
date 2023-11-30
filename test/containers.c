@@ -175,6 +175,33 @@ fixture_disconnect_unconfined (Fixture *f)
   g_clear_object (&f->unconfined_conn);
 }
 
+#ifdef DBUS_ENABLE_CONTAINERS
+static void
+fixture_disconnect_unconfined_and_wait (Fixture *f)
+{
+  guint name_watch;
+  gboolean gone = FALSE;
+
+  /* Close the unconfined connection (the container manager) and wait
+   * for it to go away */
+  g_test_message ("Closing container manager...");
+  name_watch = g_bus_watch_name_on_connection (f->confined_conn,
+                                               f->unconfined_unique_name,
+                                               G_BUS_NAME_WATCHER_FLAGS_NONE,
+                                               NULL,
+                                               name_gone_set_boolean_cb,
+                                               &gone, NULL);
+  fixture_disconnect_unconfined (f);
+
+  g_test_message ("Waiting for container manager bus name to disappear...");
+
+  while (!gone)
+    g_main_context_iteration (NULL, TRUE);
+
+  g_bus_unwatch_name (name_watch);
+}
+#endif
+
 static void
 fixture_disconnect_observer (Fixture *f)
 {
@@ -828,8 +855,6 @@ test_stop_server (Fixture *f,
   gchar *error_name;
   const gchar *confined_unique_name;
   const gchar *name_owner;
-  gboolean gone = FALSE;
-  guint name_watch;
   guint i;
 
   g_assert_nonnull (config);
@@ -871,6 +896,9 @@ test_stop_server (Fixture *f,
 
       if (config->stop_server == STOP_SERVER_DISCONNECT_FIRST)
         {
+          guint name_watch;
+          gboolean gone = FALSE;
+
           g_test_message ("Disconnecting confined connection...");
           gone = FALSE;
           confined_unique_name = g_dbus_connection_get_unique_name (
@@ -944,23 +972,9 @@ test_stop_server (Fixture *f,
   switch (config->stop_server)
     {
       case STOP_SERVER_WITH_MANAGER:
-        /* Close the unconfined connection (the container manager) and wait
-         * for it to go away */
-        g_test_message ("Closing container manager...");
-        name_watch = g_bus_watch_name_on_connection (f->confined_conn,
-                                                     f->unconfined_unique_name,
-                                                     G_BUS_NAME_WATCHER_FLAGS_NONE,
-                                                     NULL,
-                                                     name_gone_set_boolean_cb,
-                                                     &gone, NULL);
-        fixture_disconnect_unconfined (f);
-
-        g_test_message ("Waiting for container manager bus name to disappear...");
-
-        while (!gone)
-          g_main_context_iteration (NULL, TRUE);
-
-        g_bus_unwatch_name (name_watch);
+        g_test_message ("Stopping server (but not confined connection) by "
+                        "disconnecting container manager from bus");
+        fixture_disconnect_unconfined_and_wait (f);
         break;
 
       case STOP_SERVER_EXPLICITLY:
