@@ -7422,7 +7422,7 @@
 
         <para>
           The last argument (the <firstterm>named arguments</firstterm>)
-          will be used in future versions of this specification to modify
+          can be used to modify
           the behaviour of this method call; all keys in this dictionary not
           containing <literal>.</literal> are reserved by this specification
           for this purpose. It can also contain implementation-specific
@@ -7432,6 +7432,60 @@
           <literal>org.gtk.GDBus.SomeArgument</literal> if it used this
           extension point.
         </para>
+
+        <para>
+          The only named arguments that are allowed are the ones
+          listed in the
+          <literal>org.freedesktop.DBus.Containers1.SupportedArguments</literal>
+          property. All other named arguments are an error.
+          The possible keys currently defined for the named arguments are:
+          <informaltable>
+            <tgroup cols="4">
+              <thead>
+                <row>
+                  <entry>Key</entry>
+                  <entry>Value type</entry>
+                  <entry>Default value</entry>
+                  <entry>Meaning</entry>
+                </row>
+              </thead>
+              <tbody>
+                <row>
+                  <entry>StopOnDisconnect</entry>
+                  <entry>BOOLEAN</entry>
+                  <entry>true</entry>
+                  <entry>
+                    If true or omitted, the server socket will cease to
+                    listen for new connections (in the same way as if
+                    <literal>StopListening</literal> had been called
+                    successfully) when the caller of this method
+                    disconnects from the bus. Any confined connections
+                    that are already active are unaffected.
+                    If false, the server socket continues to listen after
+                    the caller disconnects, until there is some other reason
+                    for it to stop.
+                  </entry>
+                </row>
+                <row>
+                  <entry>StopOnNotify</entry>
+                  <entry>UNIX_FD</entry>
+                  <entry>(none)</entry>
+                  <entry>
+                    A file descriptor which will become readable (either
+                    data available or end-of-file) when it is time to stop
+                    listening for new connections. In practice, this is
+                    expected to be the read end of a Unix pipe, for which
+                    the corresponding write end will be closed (either
+                    explicitly or when its owning process exits) when the
+                    container manager detects that the application has
+                    stopped running. This will often be combined with
+                    <literal>{ "StopOnDisconnect": false }</literal>.
+                  </entry>
+                </row>
+              </tbody>
+            </tgroup>
+          </informaltable>
+         </para>
 
         <para>
           Keys in the returned result dictionary not containing "." are defined
@@ -7501,17 +7555,6 @@
           and may apply lower limits to these connections. However, container
           managers and services must not rely on confined connections having
           any particular filtering applied to them by the message bus.
-        </para>
-
-        <para>
-          In the most basic form of a call to this method, the server
-          socket will cease to listen for new connections (in the same
-          way as if <literal>StopListening</literal> had been called
-          successfully) when the caller of this method disconnects from
-          the bus. Any confined connections that are already active are
-          unaffected. Future versions of this specification are likely
-          to provide a way for the caller to alter this behaviour by
-          specifying named arguments.
         </para>
 
         <para>

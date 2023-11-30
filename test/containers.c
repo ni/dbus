@@ -290,6 +290,7 @@ test_get_supported_arguments (Fixture *f,
   GVariant *v;
 #ifdef DBUS_ENABLE_CONTAINERS
   const gchar **args;
+  gsize i;
   gsize len;
 #endif
 
@@ -311,8 +312,11 @@ test_get_supported_arguments (Fixture *f,
   g_assert_cmpstr (g_variant_get_type_string (v), ==, "as");
   args = g_variant_get_strv (v, &len);
 
-  /* No arguments are defined yet */
-  g_assert_cmpuint (len, ==, 0);
+  g_assert_cmpuint (len, ==, 2);
+  i = 0;
+  g_assert_cmpstr (args[i++], ==, "StopOnDisconnect");
+  g_assert_cmpstr (args[i++], ==, "StopOnNotify");
+  g_assert_cmpstr (args[i++], ==, NULL);
 
   g_free (args);
   g_variant_unref (v);

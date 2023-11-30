@@ -34,11 +34,13 @@
 #endif
 
 #include <sys/types.h>
+#include <unistd.h>
 
 #include "dbus/dbus-asv-util.h"
 #include "dbus/dbus-hash.h"
 #include "dbus/dbus-message-internal.h"
 #include "dbus/dbus-sysdeps-unix.h"
+#include "dbus/dbus-watch.h"
 
 #include "connection.h"
 #include "dispatch.h"
@@ -64,8 +66,11 @@ typedef struct
   /* List of owned DBusConnection, removed when the DBusConnection is
    * removed from the bus */
   DBusList *connections;
+  DBusWatch *stop_on_notify_watch;
   unsigned long uid;
+  int stop_on_notify_fd;
   unsigned announced:1;
+  unsigned stop_on_disconnect:1;
 } BusContainerServer;
 
 /* Data attached to a DBusConnection that has created container servers. */
@@ -274,6 +279,29 @@ oom:
 }
 
 static void
+bus_container_server_remove_notify (BusContainerServer *self)
+{
+  DBusWatch *watch;
+
+  /* Transfer the reference to this function */
+  watch = self->stop_on_notify_watch;
+  self->stop_on_notify_watch = NULL;
+
+  if (watch != NULL)
+    {
+      _dbus_loop_remove_watch (bus_context_get_loop (self->context), watch);
+      _dbus_watch_invalidate (watch);
+      _dbus_watch_unref (watch);
+    }
+
+  if (self->stop_on_notify_fd >= 0)
+    {
+      close (self->stop_on_notify_fd);
+      self->stop_on_notify_fd = -1;
+    }
+}
+
+static void
 bus_container_server_unref (BusContainerServer *self)
 {
   _dbus_assert (self->refcount > 0);
@@ -296,6 +324,8 @@ bus_container_server_unref (BusContainerServer *self)
           if (bus_container_server_emit_removed (self))
             self->announced = FALSE;
         }
+
+      bus_container_server_remove_notify (self);
 
       /* As long as the server is listening, the BusContainerServer can't
        * be freed, because the DBusServer holds a reference to the
@@ -360,6 +390,8 @@ bus_container_server_stop_listening (BusContainerServer *self)
   /* In case the DBusServer holds the last reference to self */
   bus_container_server_ref (self);
 
+  bus_container_server_remove_notify (self);
+
   if (self->server != NULL)
     {
       dbus_server_set_new_connection_function (self->server, NULL, NULL, NULL);
@@ -407,6 +439,8 @@ bus_container_server_new (BusContext *context,
   self->containers = bus_containers_ref (containers);
   self->server = NULL;
   self->creator = dbus_connection_ref (creator);
+  self->stop_on_notify_fd = -1;
+  self->stop_on_disconnect = TRUE;
 
   if (containers->next_container_id >=
       DBUS_UINT64_CONSTANT (0xFFFFFFFFFFFFFFFF))
@@ -672,6 +706,38 @@ bus_container_server_listen (BusContainerServer *self,
   return TRUE;
 }
 
+static dbus_bool_t
+check_named_parameter_type (DBusMessageIter *variant_iter,
+                            const char *param_name,
+                            int expected_type,
+                            DBusError *error)
+{
+  if (dbus_message_iter_get_arg_type (variant_iter) != expected_type)
+    {
+      dbus_set_error (error, DBUS_ERROR_INVALID_ARGS,
+                      "Named parameter %s should have type '%c', not '%c'",
+                      param_name, expected_type,
+                      dbus_message_iter_get_arg_type (variant_iter));
+      return FALSE;
+    }
+
+  return TRUE;
+}
+
+static dbus_bool_t
+bus_containers_handle_stop_notify (DBusWatch    *watch,
+                                   unsigned int  flags,
+                                   void *data)
+{
+  BusContainerServer *server = data;
+
+  _dbus_assert (watch == server->stop_on_notify_watch);
+  _dbus_verbose ("Stopping %s because notify fd became readable",
+                 server->path);
+  bus_container_server_stop_listening (server);
+  return TRUE;
+}
+
 dbus_bool_t
 bus_containers_handle_add_server (DBusConnection *connection,
                                   BusTransaction *transaction,
@@ -825,9 +891,12 @@ bus_containers_handle_add_server (DBusConnection *connection,
   _dbus_assert (dbus_message_iter_get_arg_type (&iter) == DBUS_TYPE_ARRAY);
   dbus_message_iter_recurse (&iter, &dict_iter);
 
-  while (dbus_message_iter_get_arg_type (&dict_iter) != DBUS_TYPE_INVALID)
+  for (;
+       dbus_message_iter_get_arg_type (&dict_iter) != DBUS_TYPE_INVALID;
+       dbus_message_iter_next (&dict_iter))
     {
       DBusMessageIter pair_iter;
+      DBusMessageIter variant_iter;
       const char *param_name;
 
       _dbus_assert (dbus_message_iter_get_arg_type (&dict_iter) ==
@@ -838,11 +907,64 @@ bus_containers_handle_add_server (DBusConnection *connection,
                     DBUS_TYPE_STRING);
       dbus_message_iter_get_basic (&pair_iter, &param_name);
 
-      /* If we supported any named parameters, we'd copy them into the data
-       * structure here; but we don't, so fail instead. */
-      dbus_set_error (error, DBUS_ERROR_INVALID_ARGS,
-                      "Named parameter %s is not understood", param_name);
-      goto fail;
+      if (!dbus_message_iter_next (&pair_iter))
+        _dbus_assert_not_reached ("dict entry with less than 2 items");
+
+      _dbus_assert (dbus_message_iter_get_arg_type (&pair_iter) ==
+                    DBUS_TYPE_VARIANT);
+      dbus_message_iter_recurse (&pair_iter, &variant_iter);
+
+      if (strcmp (param_name, "StopOnDisconnect") == 0)
+        {
+          dbus_bool_t value;
+
+          if (!check_named_parameter_type (&variant_iter, param_name,
+                                           DBUS_TYPE_BOOLEAN, error))
+            goto fail;
+
+          dbus_message_iter_get_basic (&variant_iter, &value);
+          server->stop_on_disconnect = !!value;
+        }
+      else if (strcmp (param_name, "StopOnNotify") == 0)
+        {
+          if (!check_named_parameter_type (&variant_iter, param_name,
+                                           DBUS_TYPE_UNIX_FD, error))
+            goto fail;
+
+          dbus_message_iter_get_basic (&variant_iter,
+                                       &server->stop_on_notify_fd);
+
+          if (server->stop_on_notify_fd < 0)
+            {
+              dbus_set_error (error, DBUS_ERROR_INVALID_ARGS,
+                              "Unable to retrieve StopOnNotify fd");
+              goto fail;
+            }
+
+          server->stop_on_notify_watch = _dbus_watch_new (server->stop_on_notify_fd,
+                                                          DBUS_WATCH_READABLE,
+                                                          TRUE,   /* enabled */
+                                                          bus_containers_handle_stop_notify,
+                                                          server,
+                                                          NULL);
+
+          if (server->stop_on_notify_watch == NULL ||
+              !_dbus_loop_add_watch (bus_context_get_loop (context),
+                                     server->stop_on_notify_watch))
+            {
+              BUS_SET_OOM (error);
+              goto fail;
+            }
+        }
+      else
+        {
+          dbus_set_error (error, DBUS_ERROR_INVALID_ARGS,
+                          "Named parameter %s is not understood", param_name);
+          goto fail;
+        }
+
+      if (dbus_message_iter_next (&pair_iter))
+        _dbus_assert_not_reached ("dict entry with more than 2 items");
     }
 
   /* End of arguments */
@@ -999,13 +1121,32 @@ dbus_bool_t
 bus_containers_supported_arguments_getter (BusContext *server,
                                            DBusMessageIter *var_iter)
 {
+  /* Please keep these sorted in strcmp (LC_ALL=C sort) order */
+  static const char * const supported[] =
+  {
+    "StopOnDisconnect",
+    "StopOnNotify",
+  };
   DBusMessageIter arr_iter;
+  size_t i;
 
-  /* There are none so far */
-  return dbus_message_iter_open_container (var_iter, DBUS_TYPE_ARRAY,
-                                           DBUS_TYPE_STRING_AS_STRING,
-                                           &arr_iter) &&
-         dbus_message_iter_close_container (var_iter, &arr_iter);
+  if (!dbus_message_iter_open_container (var_iter, DBUS_TYPE_ARRAY,
+                                         DBUS_TYPE_STRING_AS_STRING,
+                                         &arr_iter))
+    return FALSE;
+
+  for (i = 0; i < _DBUS_N_ELEMENTS (supported); i++)
+    {
+      if (!dbus_message_iter_append_basic (&arr_iter,
+                                           DBUS_TYPE_STRING,
+                                           &supported[i]))
+        {
+          dbus_message_iter_abandon_container (var_iter, &arr_iter);
+          return FALSE;
+        }
+    }
+
+  return dbus_message_iter_close_container (var_iter, &arr_iter);
 }
 
 dbus_bool_t
@@ -1436,6 +1577,11 @@ bus_containers_remove_connection (BusContainers *self,
       DBusList *iter;
       DBusList *next;
 
+      _dbus_verbose ("Closing connection %s (%s) which has owned at least "
+                     "one server",
+                     bus_connection_get_name (connection),
+                     bus_connection_get_loginfo (connection));
+
       for (iter = _dbus_list_get_first_link (&creator_data->servers);
            iter != NULL;
            iter = next)
@@ -1448,9 +1594,19 @@ bus_containers_remove_connection (BusContainers *self,
 
           _dbus_assert (server->creator == connection);
 
-          /* This will invalidate iter and server if there are no open
-           * connections to this server */
-          bus_container_server_stop_listening (server);
+          if (server->stop_on_disconnect)
+            {
+              _dbus_verbose ("Stopping %s", server->path);
+              /* This will invalidate iter and server if there are no open
+               * connections to this server */
+              bus_container_server_stop_listening (server);
+            }
+          else
+            {
+              _dbus_verbose ("Not stopping %s because it was created with "
+                             "StopOnDisconnect=FALSE",
+                             server->path);
+            }
         }
     }
 
