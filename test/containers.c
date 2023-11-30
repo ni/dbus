@@ -465,6 +465,7 @@ test_basic (Fixture *f,
   DBusMessage *libdbus_message = NULL;
   DBusMessage *libdbus_reply = NULL;
   DBusError libdbus_error = DBUS_ERROR_INIT;
+  gchar *stringified_result;
 
   if (f->skip)
     return;
@@ -596,6 +597,9 @@ test_basic (Fixture *f,
                                   G_DBUS_CALL_FLAGS_NONE, -1, NULL, &f->error);
   g_assert_no_error (f->error);
   g_assert_nonnull (tuple);
+  stringified_result = g_variant_print (tuple, TRUE);
+  g_test_message ("GetConnectionInfo() -> %s", stringified_result);
+  g_free (stringified_result);
   g_assert_cmpstr (g_variant_get_type_string (tuple), ==, "(oa{sv}sssa{sv})");
   g_variant_get (tuple, "(&o@a{sv}&s&s&s@a{sv})",
                  &path_from_query, &creator, &type, &app_id, &instance_id, &asv);
@@ -619,6 +623,9 @@ test_basic (Fixture *f,
                                   G_DBUS_CALL_FLAGS_NONE, -1, NULL, &f->error);
   g_assert_no_error (f->error);
   g_assert_nonnull (tuple);
+  stringified_result = g_variant_print (tuple, TRUE);
+  g_test_message ("GetServerInfo() -> %s", stringified_result);
+  g_free (stringified_result);
   g_assert_cmpstr (g_variant_get_type_string (tuple), ==, "(a{sv}sssa{sv})");
   g_variant_get (tuple, "(@a{sv}&s&s&s@a{sv})",
                  &creator, &type, &app_id, &instance_id, &asv);
@@ -862,6 +869,7 @@ test_stop_server (Fixture *f,
   GVariant *parameters;
   GVariantDict named_argument_builder;
   gchar *error_name;
+  gchar *stringified_result;
   const gchar *confined_unique_name;
   const gchar *name_owner;
   guint i;
@@ -1187,6 +1195,9 @@ test_stop_server (Fixture *f,
                                         &f->error);
         g_assert_no_error (f->error);
         g_assert_nonnull (tuple);
+        stringified_result = g_variant_print (tuple, TRUE);
+        g_test_message ("GetServerInfo() -> %s", stringified_result);
+        g_free (stringified_result);
         g_clear_pointer (&tuple, g_variant_unref);
 
         /* Now disconnect the last confined connection, which will make the
