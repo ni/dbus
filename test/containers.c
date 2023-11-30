@@ -69,6 +69,7 @@ typedef struct {
     guint removed_sub;
     DBusConnection *libdbus_observer;
     DBusMessage *latest_shout;
+    int stop_on_notify_pipe_write_end;
 } Fixture;
 
 typedef struct
@@ -80,6 +81,8 @@ typedef struct
       STOP_SERVER_DISCONNECT_FIRST,
       STOP_SERVER_NEVER_CONNECTED,
       STOP_SERVER_FORCE,
+      STOP_SERVER_VIA_NOTIFY,
+      STOP_SERVER_VIA_NOTIFY_NOT_MANAGER,
       STOP_SERVER_WITH_MANAGER
     }
   stop_server;
@@ -278,6 +281,8 @@ setup (Fixture *f,
   if (!dbus_connection_add_filter (f->libdbus_observer, observe_shouting_cb, f,
                                    NULL))
     g_error ("OOM");
+
+  f->stop_on_notify_pipe_write_end = -1;
 }
 
 /*
@@ -877,6 +882,33 @@ test_stop_server (Fixture *f,
   g_variant_dict_init (&named_argument_builder, NULL);
   fds = g_unix_fd_list_new ();
 
+  if (config->stop_server == STOP_SERVER_VIA_NOTIFY_NOT_MANAGER)
+    g_variant_dict_insert (&named_argument_builder, "StopOnDisconnect",
+                           "b", FALSE);
+
+  if (config->stop_server == STOP_SERVER_VIA_NOTIFY ||
+      config->stop_server == STOP_SERVER_VIA_NOTIFY_NOT_MANAGER)
+    {
+      DBusError error = DBUS_ERROR_INIT;
+      int notify_pipe[2];
+      int fd_index;
+
+      _dbus_unix_make_pipe (notify_pipe, &error);
+      test_assert_no_error (&error);
+
+      /* transfer ownership */
+      f->stop_on_notify_pipe_write_end = notify_pipe[1];
+
+      /* duplicate into the fd list and close the original */
+      fd_index = g_unix_fd_list_append (fds, notify_pipe[0], &f->error);
+      g_assert_no_error (f->error);
+      g_assert_cmpint (fd_index, >=, 0);
+      close (notify_pipe[0]);
+
+      g_variant_dict_insert (&named_argument_builder, "StopOnNotify",
+                             "h", fd_index);
+    }
+
   parameters = g_variant_new ("(sssa{sv}@a{sv})",
                               "com.example.NotFlatpak",
                               "sample-app",
@@ -1004,6 +1036,22 @@ test_stop_server (Fixture *f,
         g_clear_error (&f->error);
         break;
 
+      case STOP_SERVER_VIA_NOTIFY_NOT_MANAGER:
+        fixture_disconnect_unconfined_and_wait (f);
+
+        /* Assert that the server is still functional at this point,
+         * because we configured it with StopOnDisconnect=FALSE */
+        g_assert_true (g_file_test (f->socket_path, G_FILE_TEST_EXISTS));
+        /* fall through */
+
+      case STOP_SERVER_VIA_NOTIFY:
+        g_test_message ("Stopping server (but not confined connection) by "
+                        "closing pipe fd");
+        g_close (f->stop_on_notify_pipe_write_end, &f->error);
+        g_assert_no_error (f->error);
+        f->stop_on_notify_pipe_write_end = -1;
+        break;
+
       case STOP_SERVER_DISCONNECT_FIRST:
       case STOP_SERVER_NEVER_CONNECTED:
         g_test_message ("Stopping server (with no confined connections)...");
@@ -1110,6 +1158,8 @@ test_stop_server (Fixture *f,
         break;
 
       case STOP_SERVER_EXPLICITLY:
+      case STOP_SERVER_VIA_NOTIFY:
+      case STOP_SERVER_VIA_NOTIFY_NOT_MANAGER:
       case STOP_SERVER_WITH_MANAGER:
         g_test_message ("Checking that the confined app still works...");
         tuple = g_dbus_connection_call_sync (f->confined_conn,
@@ -1774,6 +1824,15 @@ teardown (Fixture *f,
       f->daemon_pid = 0;
     }
 
+  if (f->stop_on_notify_pipe_write_end >= 0)
+    {
+      GError *error = NULL;
+
+      g_close (f->stop_on_notify_pipe_write_end, &error);
+      g_assert_no_error (error);
+      f->stop_on_notify_pipe_write_end = -1;
+    }
+
   dbus_clear_message (&f->latest_shout);
   g_free (f->server_path);
   g_free (f->socket_path);
@@ -1803,6 +1862,16 @@ static const Config stop_server_force =
 {
   "valid-config-files/multi-user.conf",
   STOP_SERVER_FORCE
+};
+static const Config stop_server_via_notify =
+{
+  "valid-config-files/multi-user.conf",
+  STOP_SERVER_VIA_NOTIFY
+};
+static const Config stop_server_not_with_manager =
+{
+  "valid-config-files/multi-user.conf",
+  STOP_SERVER_VIA_NOTIFY_NOT_MANAGER
 };
 static const Config stop_server_with_manager =
 {
@@ -1863,6 +1932,10 @@ main (int argc,
               &stop_server_never_connected, setup, test_stop_server, teardown);
   g_test_add ("/containers/stop-server/force", Fixture,
               &stop_server_force, setup, test_stop_server, teardown);
+  g_test_add ("/containers/stop-server/via-notify", Fixture,
+              &stop_server_via_notify, setup, test_stop_server, teardown);
+  g_test_add ("/containers/stop-server/not-with-manager", Fixture,
+              &stop_server_not_with_manager, setup, test_stop_server, teardown);
   g_test_add ("/containers/stop-server/with-manager", Fixture,
               &stop_server_with_manager, setup, test_stop_server, teardown);
   g_test_add ("/containers/metadata", Fixture, &limit_containers,
