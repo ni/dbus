@@ -866,13 +866,20 @@ test_stop_server (Fixture *f,
   GSocketAddress *socket_address;
   GUnixFDList *fds = NULL;
   GVariant *tuple;
+  GVariant *creator;
   GVariant *parameters;
+  GVariant *asv;
+  GVariantDict dict;
   GVariantDict named_argument_builder;
   gchar *error_name;
   gchar *stringified_result;
   const gchar *confined_unique_name;
   const gchar *name_owner;
+  const char *type;
+  const char *app_id;
+  const char *instance_id;
   guint i;
+  guint32 uid;
 
   g_assert_nonnull (config);
 
@@ -1198,6 +1205,19 @@ test_stop_server (Fixture *f,
         stringified_result = g_variant_print (tuple, TRUE);
         g_test_message ("GetServerInfo() -> %s", stringified_result);
         g_free (stringified_result);
+        g_assert_cmpstr (g_variant_get_type_string (tuple), ==, "(a{sv}sssa{sv})");
+        g_variant_get (tuple, "(@a{sv}&s&s&s@a{sv})",
+                       &creator, &type, &app_id, &instance_id, &asv);
+        g_variant_dict_init (&dict, creator);
+        g_assert_true (g_variant_dict_lookup (&dict, "UnixUserID", "u", &uid));
+        g_assert_cmpuint (uid, ==, _dbus_getuid ());
+        g_variant_dict_clear (&dict);
+        g_assert_cmpstr (type, ==, "com.example.NotFlatpak");
+        g_assert_cmpstr (app_id, ==, "sample-app");
+        g_assert_cmpstr (instance_id, ==, "");
+        g_assert_cmpuint (g_variant_n_children (asv), ==, 0);
+        g_clear_pointer (&asv, g_variant_unref);
+        g_clear_pointer (&creator, g_variant_unref);
         g_clear_pointer (&tuple, g_variant_unref);
 
         /* Now disconnect the last confined connection, which will make the
