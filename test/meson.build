@@ -190,6 +190,20 @@ test_shell_service = executable('test-shell-service',
     link_with: libdbus_testutils,
     dependencies: dbus_dependencies,
 )
+test_sleep_forever = executable('test-sleep-forever',
+    'test-sleep-forever.c',
+    link_with: libdbus_testutils,
+    include_directories: root_include,
+    install: install_tests,
+    install_dir: test_exec_dir
+)
+test_service = executable('test-service',
+    'test-service.c',
+    link_with: libdbus_testutils,
+    include_directories: root_include,
+    install: install_tests,
+    install_dir: test_exec_dir
+)
 
 if use_traditional_activation
     test_spawn = executable('test-spawn',
@@ -321,6 +335,12 @@ if embedded_tests
                 'srcs': [ 'bus/helper-activation.c', 'bus/common.c' ],
                 'link': [ libdbus_testutils, libdbus_daemon_internal, ],
                 'install': false,
+                'test_deps': [
+                    launch_helper_for_tests,
+                    test_segfault,
+                    test_service,
+                    test_shell_service,
+                ],
                 'suite': ['slow'],
                 'timeout': 1000,
             },
@@ -341,27 +361,11 @@ if embedded_tests
                 'srcs': [ 'internals/spawn-oom.c', ],
                 'link': [ libdbus_testutils, ],
                 'install': false,
+                'test_deps': [ test_exit, test_segfault ],
             }
         ]
     endif
 endif
-
-tests += [
-    {
-        'name': 'test-service',
-        'srcs': [ 'test-service.c' ],
-        'link': [ libdbus_testutils, ],
-        'install': true,
-        'test': false,
-    },
-    {
-        'name': 'test-sleep-forever',
-        'srcs': [ 'test-sleep-forever.c' ],
-        'link': [ libdbus_testutils, ],
-        'install': true,
-        'test': false,
-    }
-]
 
 tests += [
     {
@@ -542,6 +546,7 @@ if use_glib
             'srcs': [ 'internals/sysdeps.c' ],
             'link': [ libdbus_testutils, ],
             'deps': [ glib, gio, ],
+            'test_deps': [ test_sleep_forever ],
         },
         {
             'name': 'syslog',
@@ -608,11 +613,15 @@ foreach test: tests
     srcs = test.get('srcs')
     link = test.get('link', [])
     deps = test.get('deps', [])
+    test_deps = test.get('test_deps', [])
     suites = test.get('suite', ['dbus'])
     install = test.get('install', true)
 
-    if suites.contains('runs-dbus-daemon') and not (message_bus and tools)
-        continue
+    if suites.contains('runs-dbus-daemon')
+        if not (message_bus and tools)
+            continue
+        endif
+        test_deps += dbus_daemon
     endif
 
     if test.get('test', true)
@@ -645,6 +654,7 @@ foreach test: tests
         test(name,
             test_exe,
             args: ['--tap'],
+            depends: test_deps,
             env: test_env,
             protocol: test_protocol,
             suite: suites,
@@ -668,7 +678,8 @@ scripts = []
 
 if message_bus and tools and platform_unix and use_glib
     scripts += [
-        {   'name': 'test-dbus-daemon-fork.sh', },
+        {   'name': 'test-dbus-daemon-fork.sh',
+             'test_deps': [ dbus_send ] },
         {   'name': 'transient-services.sh',
             'subdir': 'integration',
             'build_time_test': false },
@@ -689,6 +700,7 @@ foreach script: scripts
     name = script.get('name')
     install = script.get('install', true)
     suites = script.get('suite', ['dbus'])
+    test_deps = [xdgdir] + script.get('test_deps', [])
     test_subdir = script.get('subdir', '')
 
     if test_subdir == ''
@@ -715,7 +727,7 @@ foreach script: scripts
         test(name,
             find_program(script.get('subdir', '.') / name),
             env: test_env,
-            depends: xdgdir,
+            depends: test_deps,
             suite: suites,
         )
     endif
