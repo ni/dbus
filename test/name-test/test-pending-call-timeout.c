@@ -1,3 +1,12 @@
+/*
+ * Copyright 2009 Endless OS Foundation, LLC
+ * Copyright 2009 Canonical Ltd.
+ * Copyright 2012 Red Hat, Inc.
+ * Copyright 2016, 2018 Collabora Ltd.
+
+ * SPDX-License-Identifier: AFL-2.1 OR GPL-2.0-or-later
+ */
+
 /**
 * Test to make sure that pending calls succeed when given a default,
 * specific and infinite timeout.

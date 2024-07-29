@@ -1,3 +1,7 @@
+/*
+ * SPDX-License-Identifier: LicenseRef-unknown
+ */
+
 /* This is simply a process that segfaults */
 #include <config.h>
 #include <stdlib.h>

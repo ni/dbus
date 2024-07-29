@@ -1,0 +1,35 @@
+#!/bin/sh
+# SPDX-FileCopyrightText: © 2024 Ralf Habacker
+# SPDX-License-Identifier: MIT
+
+for i in $(find $1 -name '*.c' -o -name '*.h'); do
+    git log -p $i | gawk '
+function print_commit(commit, name, year, added, removed)
+{
+    if (name in names)
+        names[name] = sprintf("%s %s +%d -%d;%s", commit, y, n, r, names[name])
+    else
+        names[name] = sprintf("%s %s +%d -%d", commit, y, n, r)
+
+    #printf("%s: %s %s %s +%d -%d\n", NAME, commit, name, year, added, removed);
+}
+BEGIN { c = "" }
+$1 == "commit" {
+    if (c != "")
+        print_commit(c,a,y,n,r);
+    c = $2; e = 1; n = 0; r = 0;
+}
+$1 == "Author:" { $1 = ""; a = $0 }
+$1 == "Date:" { y = $6; e = 1 }
+e == 1 && $0 ~ /^\+ / { n += 1 }
+e == 1 && $0 ~ /^\- / { r += 1 }
+END {
+    if (c != "")
+        print_commit(c,a,y,n,r);
+    for (key in names) {
+        print(NAME ":" key " " names[key]);
+    }
+
+}
+' NAME=$i
+done
