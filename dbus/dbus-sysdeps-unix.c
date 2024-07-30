@@ -2321,13 +2321,17 @@ _dbus_read_credentials_socket  (DBusSocket       client_fd,
       }
     else
       {
-        pid_read = cr.pid;
-        uid_read = cr.uid;
+        if (cr.pid != 0)
+          pid_read = cr.pid;
+
+        if (cr.uid != (uid_t)-1)
+          uid_read = cr.uid;
 #ifdef __linux__
         /* Do other platforms have cr.gid? (Not that it really matters,
          * because the gid is useless to us unless we know the complete
          * group vector, which we only know on Linux.) */
-        primary_gid_read = cr.gid;
+        if (cr.gid != (gid_t)-1)
+          primary_gid_read = cr.gid;
 #endif
       }
 
