@@ -1,3 +1,7 @@
+/*
+ * SPDX-License-Identifier: LicenseRef-unknown
+ */
+
 /* This is a process that just sleeps infinitely. */
 
 #include <config.h>

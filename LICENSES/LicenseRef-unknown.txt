@@ -1,0 +1,7 @@
+Several older source files were contributed to dbus without explicitly
+specifying a license or a copyright holder. A reasonable assumption is
+that those files are probably intended to be licensed under
+"AFL-2.1 OR GPL-2.0-or-later".
+
+Other projects wishing to reuse those source files should do whatever
+level of legal checking and research they consider to be appropriate.

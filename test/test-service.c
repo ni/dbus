@@ -1,3 +1,7 @@
+/*
+ * SPDX-License-Identifier: LicenseRef-unknown
+ */
+
 #include <config.h>
 
 #include "test-utils.h"
