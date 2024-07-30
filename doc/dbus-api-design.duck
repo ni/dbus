@@ -391,6 +391,43 @@ is no need to null-terminate them or encode their length separately.
   FIXME: Mention maybe types and the extended kdbus/GVariant type system once
   that’s stable and round-trip-ability is no longer a concern.
 
+=== Nullable Types
+    [id="nullable-types"]
+
+While the D-Bus type system does not have native support for a nullable type
+(sometimes called a "maybe" type), there are at least two ways such a type
+can be simulated:
+
+* Designation of a special value as null.
+  This requires that a suitable value can be chosen that will never need to be
+  used in this particular context, other than as a null value representing the
+  absence of an item.
+  For example, the empty string ($code("")) is often used as null for string and
+  string-based types.
+  Similarly, the trivial object path $code("/") is sometimes used as a null
+  value representing "no object", and it is often possible to use 0 or -1 as a
+  null value for integers.
+  This is the most widely used solution and is also used by the
+  $link[>>http://dbus.freedesktop.org/doc/dbus-specification.html#standard-interfaces](D-Bus standard interfaces).
+  Note however that this solution cannot work for all D-Bus interfaces.
+  For example, if a string field can legitimately have an empty value,
+  then the empty string is not available to represent the absence of
+  a string.
+  Similarly, some types do not have any suitable values available.
+  For example, a $code(BOOLEAN) can only be true or false, and there
+  is no third value that can represent the absence of a boolean.
+
+* Encoding as an $code(ARRAY), with the null case represented by 0 elements
+  (empty array) and the non-null case represented by 1 element.
+  Unlike the previous solution, this solution can be used with all types.
+  However, since the signature does not provide any hints about the array being
+  in fact a nullable type, this can be confusing for users of generic tools like
+  $code(d-feet).
+  It is therefore highly recommended that service authors:
+  * Document each use of this solution in their D-Bus interface documentation.
+  * Return an error, with a descriptive message, on receiving an array with more
+    than 1 element for a parameter employing this solution.
+
 === Extensibility
     [id="extensibility"]
 
