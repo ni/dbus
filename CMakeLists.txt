@@ -168,6 +168,18 @@ if(DBUS_LINUX)
     endif()
 endif()
 
+if(DBUS_LINUX)
+    option(ENABLE_VERBOSE_LTTNG "Enable redirecting verbose messages to lttng tracing systen" OFF)
+    if(ENABLE_VERBOSE_LTTNG)
+        pkg_check_modules(LTTNG lttng-ust)
+        if(LTTNG_FOUND)
+            set(HAVE_LTTNG 1)
+            set(DBUS_ENABLE_VERBOSE_MODE 1)
+            message(STATUS "lttng found using ${LTTNG_LIBRARIES}")
+        endif()
+    endif()
+endif()
+
 if(NOT ENABLE_TRADITIONAL_ACTIVATION AND NOT (DBUS_LINUX AND DBUS_BUS_ENABLE_SYSTEMD))
     message(WARNING "\
 Traditional activation and systemd activation are both disabled, so service \
