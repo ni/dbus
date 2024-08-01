@@ -34,10 +34,13 @@
 /* Whatever XML library we're using just pushes data into this API */
 
 typedef struct BusConfigParser BusConfigParser;
+typedef struct BusConfigLoader BusConfigLoader;
 
 BusConfigParser* bus_config_parser_new (const DBusString      *basedir,
                                         dbus_bool_t            is_toplevel,
-                                        const BusConfigParser *parent);
+                                        const BusConfigParser *parent,
+                                        BusConfigLoader       *loader);
+void             bus_config_parser_clear_loader  (BusConfigParser   *parser);
 
 BusConfigParser* bus_config_parser_ref           (BusConfigParser   *parser);
 void             bus_config_parser_unref         (BusConfigParser   *parser);

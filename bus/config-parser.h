@@ -35,10 +35,13 @@
 /* Whatever XML library we're using just pushes data into this API */
 
 typedef struct BusConfigParser BusConfigParser;
+typedef struct BusConfigLoader BusConfigLoader;
 
 BusConfigParser* bus_config_parser_new (const DBusString      *basedir,
                                         dbus_bool_t            is_toplevel,
-                                        const BusConfigParser *parent);
+                                        const BusConfigParser *parent,
+                                        BusConfigLoader       *loader);
+void             bus_config_parser_clear_loader  (BusConfigParser   *parser);
 
 BusConfigParser* bus_config_parser_ref           (BusConfigParser   *parser);
 void             bus_config_parser_unref         (BusConfigParser   *parser);
@@ -84,6 +87,10 @@ BusConfigParser* bus_config_load (const DBusString      *file,
                                   dbus_bool_t            is_toplevel,
                                   const BusConfigParser *parent,
                                   DBusError             *error);
+void bus_config_log (BusConfigLoader        *loader,
+                     DBusSystemLogSeverity   severity,
+                     const char             *format,
+                     ...) _DBUS_GNUC_PRINTF (3, 4);
 
 /*
  * These are chosen such that if we configure a directory twice with different

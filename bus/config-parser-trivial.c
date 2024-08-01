@@ -83,7 +83,8 @@ service_dirs_append_link_unique_or_free (DBusList **service_dirs,
 BusConfigParser*
 bus_config_parser_new (const DBusString             *basedir,
                        dbus_bool_t                   is_toplevel,
-                       const BusConfigParser        *parent)
+                       const BusConfigParser        *parent,
+                       BusConfigLoader              *loader)
 {
   BusConfigParser *parser;
 
@@ -116,6 +117,12 @@ failed_parser:
   dbus_free (parser);
 failed:
   return NULL;
+}
+
+void
+bus_config_parser_clear_loader (BusConfigParser *parser)
+{
+  /* Nothing to do, we didn't save it anyway */
 }
 
 void

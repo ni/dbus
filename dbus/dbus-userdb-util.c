@@ -121,20 +121,6 @@ _dbus_is_console_user (dbus_uid_t uid,
 }
 
 /**
- * Gets user ID given username
- *
- * @param username the username
- * @param uid return location for UID
- * @returns #TRUE if username existed and we got the UID
- */
-dbus_bool_t
-_dbus_get_user_id (const DBusString  *username,
-                   dbus_uid_t        *uid)
-{
-  return _dbus_get_user_id_and_primary_group (username, uid, NULL);
-}
-
-/**
  * Gets group ID given groupname
  *
  * @param groupname the groupname
@@ -143,35 +129,36 @@ _dbus_get_user_id (const DBusString  *username,
  */
 dbus_bool_t
 _dbus_get_group_id (const DBusString  *groupname,
-                    dbus_gid_t        *gid)
+                    dbus_gid_t        *gid,
+                    DBusError         *error)
 {
   DBusUserDatabase *db;
   const DBusGroupInfo *info;
+  dbus_bool_t ret = FALSE;
 
-  /* FIXME: this can't distinguish ENOMEM from other errors */
   if (!_dbus_user_database_lock_system ())
-    return FALSE;
-
-  db = _dbus_user_database_get_system ();
-  if (db == NULL)
     {
-      _dbus_user_database_unlock_system ();
+      _DBUS_SET_OOM (error);
       return FALSE;
     }
+
+  db = _dbus_user_database_get_system (error);
+  if (db == NULL)
+    goto out;
 
   info = _dbus_user_database_lookup_group (db, DBUS_GID_UNSET, groupname,
-                                           NULL);
+                                           error);
 
   if (info == NULL)
-    {
-      _dbus_user_database_unlock_system ();
-      return FALSE;
-    }
+    goto out;
 
   *gid = info->gid;
-  
+  ret = TRUE;
+
+out:
   _dbus_user_database_unlock_system ();
-  return TRUE;
+  _DBUS_ASSERT_ERROR_XOR_BOOL (error, ret);
+  return ret;
 }
 
 /**
@@ -185,36 +172,36 @@ _dbus_get_group_id (const DBusString  *groupname,
 dbus_bool_t
 _dbus_get_user_id_and_primary_group (const DBusString  *username,
                                      dbus_uid_t        *uid_p,
-                                     dbus_gid_t        *gid_p)
+                                     dbus_gid_t        *gid_p,
+                                     DBusError         *error)
 {
   DBusUserDatabase *db;
   const DBusUserInfo *info;
+  dbus_bool_t ret = FALSE;
 
-  /* FIXME: this can't distinguish ENOMEM from other errors */
   if (!_dbus_user_database_lock_system ())
-    return FALSE;
+    {
+      _DBUS_SET_OOM (error);
+      return FALSE;
+    }
 
-  db = _dbus_user_database_get_system ();
+  db = _dbus_user_database_get_system (error);
   if (db == NULL)
-    {
-      _dbus_user_database_unlock_system ();
-      return FALSE;
-    }
+    goto out;
 
-  if (!_dbus_user_database_get_username (db, username,
-                                         &info, NULL))
-    {
-      _dbus_user_database_unlock_system ();
-      return FALSE;
-    }
+  if (!_dbus_user_database_get_username (db, username, &info, error))
+    goto out;
 
   if (uid_p)
     *uid_p = info->uid;
   if (gid_p)
     *gid_p = info->primary_gid;
-  
+  ret = TRUE;
+
+out:
   _dbus_user_database_unlock_system ();
-  return TRUE;
+  _DBUS_ASSERT_ERROR_XOR_BOOL (error, ret);
+  return ret;
 }
 
 /**
@@ -364,12 +351,9 @@ _dbus_groups_from_uid (dbus_uid_t         uid,
       return FALSE;
     }
 
-  db = _dbus_user_database_get_system ();
+  db = _dbus_user_database_get_system (error);
   if (db == NULL)
-    {
-      _DBUS_SET_OOM (error);
-      goto out;
-    }
+    goto out;
 
   if (!_dbus_user_database_get_uid (db, uid, &info, error))
     goto out;

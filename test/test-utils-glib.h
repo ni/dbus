@@ -143,6 +143,26 @@ backported_g_steal_pointer (gpointer pointer_to_pointer)
 #define g_assert_nonnull(a) g_assert ((a) != NULL)
 #endif
 
+#if GLIB_VERSION_MAX_ALLOWED < G_ENCODE_VERSION (2, 70)
+#define g_test_skip_printf backported_g_test_skip_printf
+static inline void backported_g_test_skip_printf (const char *format,
+                                                  ...) G_GNUC_PRINTF (1, 2);
+static inline void
+backported_g_test_skip_printf (const char *format,
+                               ...)
+{
+  gchar *s;
+  va_list ap;
+
+  va_start (ap, format);
+  s = g_strdup_vprintf (format, ap);
+  va_end (ap);
+
+  g_test_skip (s);
+  g_free (s);
+}
+#endif
+
 gboolean test_check_tcp_works (void);
 gboolean test_check_af_unix_works (void);
 

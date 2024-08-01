@@ -795,7 +795,7 @@ _dbus_test_main (int                  argc,
       /* We use a username that almost certainly doesn't exist, because
        * if we used something like root it might get handled early in the
        * NSS search order, before we get as far as asking sssd or LDAP. */
-      _dbus_parse_unix_user_from_config (&username, &ignored_uid);
+      _dbus_parse_unix_user_from_config (&username, &ignored_uid, NULL);
       _dbus_test_check_memleaks ("initial nss query");
     }
 

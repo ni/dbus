@@ -310,13 +310,14 @@ _dbus_write_pid_to_file_and_pipe (const DBusString *pidfile,
  * @returns #TRUE if username is valid
  */
 dbus_bool_t
-_dbus_verify_daemon_user (const char *user)
+_dbus_verify_daemon_user (const char *user,
+                          DBusError  *error)
 {
   DBusString u;
 
   _dbus_string_init_const (&u, user);
 
-  return _dbus_get_user_id_and_primary_group (&u, NULL, NULL);
+  return _dbus_get_user_id_and_primary_group (&u, NULL, NULL, error);
 }
 
 
@@ -339,13 +340,8 @@ _dbus_change_to_daemon_user  (const char    *user,
 
   _dbus_string_init_const (&u, user);
 
-  if (!_dbus_get_user_id_and_primary_group (&u, &uid, &gid))
-    {
-      dbus_set_error (error, DBUS_ERROR_FAILED,
-                      "User '%s' does not appear to exist?",
-                      user);
-      return FALSE;
-    }
+  if (!_dbus_get_user_id_and_primary_group (&u, &uid, &gid, error))
+    return FALSE;
 
   /* setgroups() only works if we are a privileged process,
    * so we don't return error on failure; the only possible
@@ -917,9 +913,10 @@ _dbus_group_info_fill_gid (DBusGroupInfo *info,
  */
 dbus_bool_t
 _dbus_parse_unix_user_from_config (const DBusString  *username,
-                                   dbus_uid_t        *uid_p)
+                                   dbus_uid_t        *uid_p,
+                                   DBusError         *error)
 {
-  return _dbus_get_user_id (username, uid_p);
+  return _dbus_get_user_id_and_primary_group (username, uid_p, NULL, error);
 
 }
 
@@ -933,9 +930,10 @@ _dbus_parse_unix_user_from_config (const DBusString  *username,
  */
 dbus_bool_t
 _dbus_parse_unix_group_from_config (const DBusString  *groupname,
-                                    dbus_gid_t        *gid_p)
+                                    dbus_gid_t        *gid_p,
+                                    DBusError         *error)
 {
-  return _dbus_get_group_id (groupname, gid_p);
+  return _dbus_get_group_id (groupname, gid_p, error);
 }
 
 /**
@@ -1357,18 +1355,20 @@ out:
  * DBUS_DATADIR
  *
  * @param dirs the directory list we are returning
- * @returns #FALSE on OOM
+ * @param error return location for errors
+ * @returns #FALSE on error
  */
 
 dbus_bool_t
-_dbus_get_standard_session_servicedirs (DBusList **dirs)
+_dbus_get_standard_session_servicedirs (DBusList **dirs,
+                                        DBusError *error)
 {
   const char *xdg_data_home;
   const char *xdg_data_dirs;
-  DBusString servicedir_path;
+  DBusString servicedir_path = _DBUS_STRING_INIT_INVALID;
 
   if (!_dbus_string_init (&servicedir_path))
-    return FALSE;
+    goto oom;
 
   xdg_data_home = _dbus_getenv ("XDG_DATA_HOME");
   xdg_data_dirs = _dbus_getenv ("XDG_DATA_DIRS");
@@ -1383,8 +1383,8 @@ _dbus_get_standard_session_servicedirs (DBusList **dirs)
       const DBusString *homedir;
       DBusString local_share;
 
-      if (!_dbus_homedir_from_current_process (&homedir))
-        goto oom;
+      if (!_dbus_homedir_from_current_process (&homedir, error))
+        goto failed;
 
       if (!_dbus_string_append (&servicedir_path, _dbus_string_get_const_data (homedir)))
         goto oom;
@@ -1429,6 +1429,9 @@ _dbus_get_standard_session_servicedirs (DBusList **dirs)
   return TRUE;
 
  oom:
+  _DBUS_SET_OOM (error);
+failed:
+  _DBUS_ASSERT_ERROR_IS_SET (error);
   _dbus_string_free (&servicedir_path);
   return FALSE;
 }

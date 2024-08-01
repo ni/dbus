@@ -738,9 +738,13 @@ _dbus_keyring_new_for_credentials (DBusCredentials  *credentials,
     }
   
   if (!_dbus_append_keyring_directory_for_credentials (&ringdir,
-                                                       our_credentials))
-    goto failed;
-  
+                                                       our_credentials,
+                                                       error))
+    {
+      error_set = TRUE;
+      goto failed;
+    }
+
   keyring = _dbus_keyring_new ();
   if (keyring == NULL)
     goto failed;

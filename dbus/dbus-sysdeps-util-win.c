@@ -240,8 +240,10 @@ _dbus_write_pid_to_file_and_pipe (const DBusString *pidfile,
  * @returns #TRUE if username is valid
  */
 dbus_bool_t
-_dbus_verify_daemon_user (const char *user)
+_dbus_verify_daemon_user (const char *user,
+                          DBusError  *error)
 {
+  /* TODO: Surely this should fail with set_unix_uid_unsupported()? */
   return TRUE;
 }
 
@@ -685,8 +687,10 @@ _dbus_unix_user_is_at_console (dbus_uid_t         uid,
  */
 dbus_bool_t
 _dbus_parse_unix_group_from_config (const DBusString  *groupname,
-                                    dbus_gid_t        *gid_p)
+                                    dbus_gid_t        *gid_p,
+                                    DBusError         *error)
 {
+  set_unix_uid_unsupported (error);
   return FALSE;
 }
 
@@ -700,8 +704,10 @@ _dbus_parse_unix_group_from_config (const DBusString  *groupname,
  */
 dbus_bool_t
 _dbus_parse_unix_user_from_config (const DBusString  *username,
-                                   dbus_uid_t        *uid_p)
+                                   dbus_uid_t        *uid_p,
+                                   DBusError         *error)
 {
+  set_unix_uid_unsupported (error);
   return FALSE;
 }
 
@@ -1509,17 +1515,19 @@ _dbus_set_up_transient_session_servicedirs (DBusList  **dirs,
  * relocated DBUS_DATADIR
  *
  * @param dirs the directory list we are returning
- * @returns #FALSE on OOM
+ * @param error return location for errors
+ * @returns #FALSE on error
  */
 
 dbus_bool_t
-_dbus_get_standard_session_servicedirs (DBusList **dirs)
+_dbus_get_standard_session_servicedirs (DBusList **dirs,
+                                        DBusError *error)
 {
   const char *common_progs;
-  DBusString servicedir_path;
+  DBusString servicedir_path = _DBUS_STRING_INIT_INVALID;
 
   if (!_dbus_string_init (&servicedir_path))
-    return FALSE;
+    goto oom;
 
 #ifdef DBUS_WINCE
   {
@@ -1585,6 +1593,7 @@ _dbus_get_standard_session_servicedirs (DBusList **dirs)
   return TRUE;
 
  oom:
+  _DBUS_SET_OOM (error);
   _dbus_string_free (&servicedir_path);
   return FALSE;
 }

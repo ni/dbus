@@ -116,6 +116,7 @@ struct BusConfigParser
   DBusList *included_files;  /**< Included files stack */
 
   DBusHashTable *service_context_table; /**< Map service names to SELinux contexts */
+  BusConfigLoader *loader;
 
   unsigned int fork : 1; /**< TRUE to fork into daemon mode */
 
@@ -440,7 +441,8 @@ seen_include (BusConfigParser  *parser,
 BusConfigParser*
 bus_config_parser_new (const DBusString      *basedir,
                        dbus_bool_t            is_toplevel,
-                       const BusConfigParser *parent)
+                       const BusConfigParser *parent,
+                       BusConfigLoader       *loader)
 {
   BusConfigParser *parser;
 
@@ -449,6 +451,7 @@ bus_config_parser_new (const DBusString      *basedir,
     return NULL;
 
   parser->is_toplevel = !!is_toplevel;
+  parser->loader = loader;
   
   if (!_dbus_string_init (&parser->basedir))
     {
@@ -559,6 +562,16 @@ bus_config_parser_new (const DBusString      *basedir,
   parser->refcount = 1;
       
   return parser;
+}
+
+/*
+ * Inform the parser that the BusConfigLoader pointer passed to
+ * bus_config_parser_new() is no longer valid.
+ */
+void
+bus_config_parser_clear_loader (BusConfigParser *parser)
+{
+  parser->loader = NULL;
 }
 
 BusConfigParser *
@@ -908,11 +921,8 @@ start_busconfig_child (BusConfigParser   *parser,
 
       _dbus_assert (dirs == NULL);
 
-      if (!_dbus_get_standard_session_servicedirs (&dirs))
-        {
-          BUS_SET_OOM (error);
-          return FALSE;
-        }
+      if (!_dbus_get_standard_session_servicedirs (&dirs, error))
+        return FALSE;
 
       /* We have traditionally watched the standard session service
        * directories with inotify, and allowed service files whose names do not
@@ -1123,27 +1133,51 @@ start_busconfig_child (BusConfigParser   *parser,
         }
       else if (user != NULL)
         {
+          DBusError local_error = DBUS_ERROR_INIT;
           DBusString username;
           _dbus_string_init_const (&username, user);
 
           if (_dbus_parse_unix_user_from_config (&username,
-                                                 &e->d.policy.gid_uid_or_at_console))
-            e->d.policy.type = POLICY_USER;
+                                                 &e->d.policy.gid_uid_or_at_console,
+                                                 &local_error))
+            {
+              e->d.policy.type = POLICY_USER;
+            }
+          else if (dbus_error_has_name (&local_error, DBUS_ERROR_NO_MEMORY))
+            {
+              dbus_move_error (&local_error, error);
+              return FALSE;
+            }
           else
-            _dbus_warn ("Unknown username \"%s\" in message bus configuration file",
-                        user);
+            {
+              bus_config_log (parser->loader, DBUS_SYSTEM_LOG_WARNING,
+                              "Ignoring <policy>: %s", local_error.message);
+              dbus_error_free (&local_error);
+            }
         }
       else if (group != NULL)
         {
+          DBusError local_error = DBUS_ERROR_INIT;
           DBusString group_name;
           _dbus_string_init_const (&group_name, group);
 
           if (_dbus_parse_unix_group_from_config (&group_name,
-                                                  &e->d.policy.gid_uid_or_at_console))
-            e->d.policy.type = POLICY_GROUP;
+                                                  &e->d.policy.gid_uid_or_at_console,
+                                                  &local_error))
+            {
+              e->d.policy.type = POLICY_GROUP;
+            }
+          else if (dbus_error_has_name (&local_error, DBUS_ERROR_NO_MEMORY))
+            {
+              dbus_move_error (&local_error, error);
+              return FALSE;
+            }
           else
-            _dbus_warn ("Unknown group \"%s\" in message bus configuration file",
-                        group);          
+            {
+              bus_config_log (parser->loader, DBUS_SYSTEM_LOG_WARNING,
+                              "Ignoring <policy>: %s", local_error.message);
+              dbus_error_free (&local_error);
+            }
         }
       else if (at_console != NULL)
         {
@@ -1755,12 +1789,13 @@ append_rule_from_element (BusConfigParser   *parser,
         }
       else
         {
+          DBusError local_error = DBUS_ERROR_INIT;
           DBusString username;
           dbus_uid_t uid;
           
           _dbus_string_init_const (&username, user);
       
-          if (_dbus_parse_unix_user_from_config (&username, &uid))
+          if (_dbus_parse_unix_user_from_config (&username, &uid, &local_error))
             {
               rule = bus_policy_rule_new (BUS_POLICY_RULE_USER, allow); 
               if (rule == NULL)
@@ -1768,10 +1803,17 @@ append_rule_from_element (BusConfigParser   *parser,
 
               rule->d.user.uid = uid;
             }
+          else if (dbus_error_has_name (&local_error, DBUS_ERROR_NO_MEMORY))
+            {
+              dbus_move_error (&local_error, error);
+              return FALSE;
+            }
           else
             {
-              _dbus_warn ("Unknown username \"%s\" on element <%s>",
-                          user, element_name);
+              bus_config_log (parser->loader, DBUS_SYSTEM_LOG_WARNING,
+                              "Ignoring element <%s>: %s",
+                              element_name, local_error.message);
+              dbus_error_free (&local_error);
             }
         }
     }
@@ -1787,12 +1829,13 @@ append_rule_from_element (BusConfigParser   *parser,
         }
       else
         {
+          DBusError local_error = DBUS_ERROR_INIT;
           DBusString groupname;
           dbus_gid_t gid;
           
           _dbus_string_init_const (&groupname, group);
           
-          if (_dbus_parse_unix_group_from_config (&groupname, &gid))
+          if (_dbus_parse_unix_group_from_config (&groupname, &gid, NULL))
             {
               rule = bus_policy_rule_new (BUS_POLICY_RULE_GROUP, allow); 
               if (rule == NULL)
@@ -1800,10 +1843,17 @@ append_rule_from_element (BusConfigParser   *parser,
 
               rule->d.group.gid = gid;
             }
+          else if (dbus_error_has_name (&local_error, DBUS_ERROR_NO_MEMORY))
+            {
+              dbus_move_error (&local_error, error);
+              return FALSE;
+            }
           else
             {
-              _dbus_warn ("Unknown group \"%s\" on element <%s>",
-                          group, element_name);
+              bus_config_log (parser->loader, DBUS_SYSTEM_LOG_WARNING,
+                              "Ignoring element <%s>: %s",
+                              element_name, local_error.message);
+              dbus_error_free (&local_error);
             }
         }
     }

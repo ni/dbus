@@ -436,6 +436,14 @@ main (int argc, char **argv)
    * to inherit fds we might have inherited from our caller. */
   _dbus_fd_set_all_close_on_exec ();
 #endif
+
+  /* Before we have loaded configuration, we don't know whether we're
+   * meant to log to syslog or to stderr, so temporarily bring up logging
+   * to stderr. We'll change this to point to syslog later, if so configured.
+   * This makes sure we get the expected "dbus-daemon[pid]:" prefix on
+   * any warnings we emit while parsing the configuration file. */
+  _dbus_init_system_log ("dbus-daemon", DBUS_LOG_FLAGS_STDERR);
+
   ready_event_handle = NULL;
 
   if (!_dbus_string_init (&config_file))

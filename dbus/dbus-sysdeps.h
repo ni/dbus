@@ -297,9 +297,11 @@ DBUS_PRIVATE_EXPORT
 dbus_bool_t _dbus_append_user_from_current_process     (DBusString        *str);
 
 dbus_bool_t _dbus_parse_unix_user_from_config   (const DBusString  *username,
-                                                 dbus_uid_t        *uid_p);
+                                                 dbus_uid_t        *uid_p,
+                                                 DBusError         *error);
 dbus_bool_t _dbus_parse_unix_group_from_config  (const DBusString  *groupname,
-                                                 dbus_gid_t        *gid_p);
+                                                 dbus_gid_t        *gid_p,
+                                                 DBusError         *error);
 dbus_bool_t _dbus_unix_groups_from_uid          (dbus_uid_t         uid,
                                                  dbus_gid_t       **group_ids,
                                                  int               *n_group_ids,
@@ -310,7 +312,8 @@ dbus_bool_t _dbus_unix_user_is_process_owner    (dbus_uid_t         uid);
 dbus_bool_t _dbus_windows_user_is_process_owner (const char        *windows_sid);
 
 dbus_bool_t _dbus_append_keyring_directory_for_credentials (DBusString      *directory,
-                                                            DBusCredentials *credentials);
+                                                            DBusCredentials *credentials,
+                                                            DBusError       *error);
 
 dbus_bool_t _dbus_daemon_unpublish_session_bus_address (void);
 
@@ -491,7 +494,8 @@ dbus_bool_t _dbus_string_get_dirname  (const DBusString *filename,
 DBUS_PRIVATE_EXPORT
 dbus_bool_t _dbus_path_is_absolute    (const DBusString *filename);
 
-dbus_bool_t _dbus_get_standard_session_servicedirs (DBusList **dirs);
+dbus_bool_t _dbus_get_standard_session_servicedirs (DBusList **dirs,
+                                                    DBusError *error);
 dbus_bool_t _dbus_get_standard_system_servicedirs (DBusList **dirs);
 dbus_bool_t _dbus_set_up_transient_session_servicedirs (DBusList  **dirs,
                                                         DBusError  *error);
@@ -606,7 +610,8 @@ dbus_bool_t _dbus_become_daemon   (const DBusString *pidfile,
                                    DBusError        *error,
                                    dbus_bool_t       keep_umask);
 
-dbus_bool_t _dbus_verify_daemon_user    (const char *user);
+dbus_bool_t _dbus_verify_daemon_user    (const char *user,
+                                         DBusError  *error);
 dbus_bool_t _dbus_change_to_daemon_user (const char *user,
                                          DBusError  *error);
 

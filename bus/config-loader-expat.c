@@ -30,13 +30,14 @@
 
 static XML_Memory_Handling_Suite memsuite;
 
-typedef struct
+typedef struct BusConfigLoader
 {
   BusConfigParser *parser;
   const char *filename;
   DBusString content;
   DBusError *error;
   dbus_bool_t failed;
+  XML_Parser expat;
 } ExpatParseContext;
 
 static dbus_bool_t
@@ -225,13 +226,15 @@ bus_config_load (const DBusString      *file,
       goto failed;
     }
   
-  parser = bus_config_parser_new (&dirname, is_toplevel, parent);
+  parser = bus_config_parser_new (&dirname, is_toplevel, parent, &context);
   if (parser == NULL)
     {
       dbus_set_error (error, DBUS_ERROR_NO_MEMORY, NULL);
       goto failed;
     }
   context.parser = parser;
+  context.filename = filename;
+  context.expat = expat;
 
   XML_SetUserData (expat, &context);
   XML_SetElementHandler (expat,
@@ -260,8 +263,24 @@ bus_config_load (const DBusString      *file,
 
     if (XML_Parse (expat, data_str, _dbus_string_get_length (&data), TRUE) == XML_STATUS_ERROR)
       {
-        if (context.error != NULL &&
-            !dbus_error_is_set (context.error))
+        if (error == NULL)
+          {
+            /* No error reporting required */
+          }
+        if (dbus_error_is_set (error))
+          {
+            /* Prepend the location of the error */
+            DBusError local_error = DBUS_ERROR_INIT;
+
+            dbus_set_error (&local_error, error->name, "%s:%lu:%lu: %s",
+                            filename,
+                            (unsigned long) XML_GetCurrentLineNumber (expat),
+                            (unsigned long) XML_GetCurrentColumnNumber (expat),
+                            error->message);
+            dbus_error_free (error);
+            dbus_move_error (&local_error, error);
+          }
+        else
           {
             enum XML_Error e;
 
@@ -287,14 +306,33 @@ bus_config_load (const DBusString      *file,
     _dbus_string_free (&data);
 
     if (context.failed)
-      goto failed;
+      {
+        if (dbus_error_is_set (error))
+          {
+            /* Prepend the location of the error */
+            DBusError local_error = DBUS_ERROR_INIT;
+
+            dbus_set_error (&local_error, error->name, "%s:%lu:%lu: %s",
+                            filename,
+                            (unsigned long) XML_GetCurrentLineNumber (expat),
+                            (unsigned long) XML_GetCurrentColumnNumber (expat),
+                            error->message);
+            dbus_error_free (error);
+            dbus_move_error (&local_error, error);
+          }
+
+        goto failed;
+      }
   }
+
+  bus_config_parser_clear_loader (parser);
 
   if (!bus_config_parser_finished (parser, error))
     goto failed;
 
   _dbus_string_free (&dirname);
   _dbus_string_free (&context.content);
+  context.expat = NULL;
   XML_ParserFree (expat);
 
   _DBUS_ASSERT_ERROR_IS_CLEAR (error);
@@ -308,6 +346,61 @@ bus_config_load (const DBusString      *file,
   if (expat)
     XML_ParserFree (expat);
   if (parser)
-    bus_config_parser_unref (parser);
+    {
+      bus_config_parser_clear_loader (parser);
+      bus_config_parser_unref (parser);
+    }
   return NULL;
+}
+
+void
+bus_config_log (BusConfigLoader        *loader,
+                DBusSystemLogSeverity   severity,
+                const char             *format,
+                ...)
+{
+  DBusString buffer = _DBUS_STRING_INIT_INVALID;
+  va_list args;
+  dbus_bool_t ok;
+
+  if (loader == NULL || loader->filename == NULL || loader->expat == NULL)
+    {
+      va_start (args, format);
+      _dbus_logv (severity, format, args);
+      va_end (args);
+      return;
+    }
+
+  if (!_dbus_string_init (&buffer))
+    goto oom;
+
+  if (!_dbus_string_append_printf (&buffer,
+                                   "%s:%lu:%lu: ",
+                                   loader->filename,
+                                   (unsigned long) XML_GetCurrentLineNumber (loader->expat),
+                                   (unsigned long) XML_GetCurrentColumnNumber (loader->expat)))
+      goto oom;
+
+  va_start (args, format);
+  ok = _dbus_string_append_printf_valist (&buffer, format, args);
+  va_end (args);
+
+  if (!ok)
+    goto oom;
+
+  _dbus_log (severity, "%s", _dbus_string_get_const_data (&buffer));
+  _dbus_string_free (&buffer);
+  return;
+
+oom:
+  /* We can avoid allocating extra memory by splitting the message across
+   * two lines */
+  _dbus_log (severity, "%s:%lu:%lu:",
+             loader->filename,
+             (unsigned long) XML_GetCurrentLineNumber (loader->expat),
+             (unsigned long) XML_GetCurrentColumnNumber (loader->expat));
+  va_start (args, format);
+  _dbus_logv (severity, format, args);
+  va_end (args);
+  _dbus_string_free (&buffer);
 }

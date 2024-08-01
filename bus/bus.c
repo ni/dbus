@@ -932,13 +932,8 @@ bus_context_new (const DBusString *config_file,
   /* check user before we fork */
   if (context->user != NULL)
     {
-      if (!_dbus_verify_daemon_user (context->user))
-        {
-          dbus_set_error (error, DBUS_ERROR_FAILED,
-                          "Could not get UID and GID for username \"%s\"",
-                          context->user);
-          goto failed;
-        }
+      if (!_dbus_verify_daemon_user (context->user, error))
+        goto failed;
     }
 
   /* Now become a daemon if appropriate and write out pid file in any case */

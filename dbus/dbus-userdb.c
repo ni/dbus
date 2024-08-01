@@ -278,44 +278,44 @@ shutdown_system_db (void *data)
 }
 
 static dbus_bool_t
-init_system_db (void)
+init_system_db (DBusError *error)
 {
   _dbus_assert (database_locked);
     
   if (system_db == NULL)
     {
-      DBusError error = DBUS_ERROR_INIT;
+      DBusError local_error = DBUS_ERROR_INIT;
       const DBusUserInfo *info;
       
       system_db = _dbus_user_database_new ();
       if (system_db == NULL)
-        return FALSE;
+        {
+          _DBUS_SET_OOM (error);
+          return FALSE;
+        }
 
       if (!_dbus_user_database_get_uid (system_db,
                                         _dbus_getuid (),
                                         &info,
-                                        &error))
+                                        &local_error))
         {
           _dbus_user_database_unref (system_db);
           system_db = NULL;
           
-          if (dbus_error_has_name (&error, DBUS_ERROR_NO_MEMORY))
-            {
-              dbus_error_free (&error);
-              return FALSE;
-            }
-          else
+          if (!dbus_error_has_name (&local_error, DBUS_ERROR_NO_MEMORY))
             {
               /* This really should not happen. */
               _dbus_warn ("Could not get password database information for UID of current process: %s",
-                          error.message);
-              dbus_error_free (&error);
-              return FALSE;
+                          local_error.message);
             }
+
+          dbus_move_error (&local_error, error);
+          return FALSE;
         }
 
       if (!_dbus_string_init (&process_username))
         {
+          _DBUS_SET_OOM (error);
           _dbus_user_database_unref (system_db);
           system_db = NULL;
           return FALSE;
@@ -323,6 +323,7 @@ init_system_db (void)
 
       if (!_dbus_string_init (&process_homedir))
         {
+          _DBUS_SET_OOM (error);
           _dbus_string_free (&process_username);
           _dbus_user_database_unref (system_db);
           system_db = NULL;
@@ -335,6 +336,7 @@ init_system_db (void)
                                 info->homedir) ||
           !_dbus_register_shutdown_func (shutdown_system_db, NULL))
         {
+          _DBUS_SET_OOM (error);
           _dbus_string_free (&process_username);
           _dbus_string_free (&process_homedir);
           _dbus_user_database_unref (system_db);
@@ -348,6 +350,7 @@ init_system_db (void)
 
 /**
  * Locks global system user database.
+ * @returns #FALSE if no memory
  */
 dbus_bool_t
 _dbus_user_database_lock_system (void)
@@ -377,15 +380,15 @@ _dbus_user_database_unlock_system (void)
  * Gets the system global user database;
  * must be called with lock held (_dbus_user_database_lock_system()).
  *
- * @returns the database or #NULL if no memory
+ * @returns the database or #NULL on error
  */
 DBusUserDatabase*
-_dbus_user_database_get_system (void)
+_dbus_user_database_get_system (DBusError *error)
 {
   _dbus_assert (database_locked);
 
-  init_system_db ();
-  
+  init_system_db (error);
+  _DBUS_ASSERT_ERROR_XOR_BOOL (error, (system_db != NULL));
   return system_db;
 }
 
@@ -415,12 +418,16 @@ _dbus_user_database_flush_system (void)
  * @returns #FALSE if no memory
  */
 dbus_bool_t
-_dbus_username_from_current_process (const DBusString **username)
+_dbus_username_from_current_process (const DBusString **username,
+                                     DBusError         *error)
 {
   if (!_dbus_user_database_lock_system ())
-    return FALSE;
+    {
+      _DBUS_SET_OOM (error);
+      return FALSE;
+    }
 
-  if (!init_system_db ())
+  if (!init_system_db (error))
     {
       _dbus_user_database_unlock_system ();
       return FALSE;
@@ -439,12 +446,16 @@ _dbus_username_from_current_process (const DBusString **username)
  * @returns #FALSE if no memory
  */
 dbus_bool_t
-_dbus_homedir_from_current_process (const DBusString  **homedir)
+_dbus_homedir_from_current_process (const DBusString  **homedir,
+                                    DBusError          *error)
 {
   if (!_dbus_user_database_lock_system ())
-    return FALSE;
+    {
+      _DBUS_SET_OOM (error);
+      return FALSE;
+    }
 
-  if (!init_system_db ())
+  if (!init_system_db (error))
     {
       _dbus_user_database_unlock_system ();
       return FALSE;
@@ -464,10 +475,13 @@ _dbus_homedir_from_current_process (const DBusString  **homedir)
  */
 dbus_bool_t
 _dbus_homedir_from_uid (dbus_uid_t         uid,
-                        DBusString        *homedir)
+                        DBusString        *homedir,
+                        DBusError         *error)
 {
   DBusUserDatabase *db;
   const DBusUserInfo *info;
+  dbus_bool_t locked = FALSE;
+  dbus_bool_t ret = FALSE;
 
   if (uid == _dbus_getuid () && uid == _dbus_geteuid ())
     {
@@ -476,35 +490,45 @@ _dbus_homedir_from_uid (dbus_uid_t         uid,
       from_environment = _dbus_getenv ("HOME");
 
       if (from_environment != NULL)
-        return _dbus_string_append (homedir, from_environment);
+        {
+          if (_dbus_string_append (homedir, from_environment))
+            ret = TRUE;
+          else
+            _DBUS_SET_OOM (error);
+
+          goto out;
+        }
     }
 
-  /* FIXME: this can't distinguish ENOMEM from other errors */
   if (!_dbus_user_database_lock_system ())
-    return FALSE;
+    {
+      _DBUS_SET_OOM (error);
+      goto out;
+    }
 
-  db = _dbus_user_database_get_system ();
+  locked = TRUE;
+
+  db = _dbus_user_database_get_system (error);
   if (db == NULL)
-    {
-      _dbus_user_database_unlock_system ();
-      return FALSE;
-    }
+    goto out;
 
-  if (!_dbus_user_database_get_uid (db, uid,
-                                    &info, NULL))
-    {
-      _dbus_user_database_unlock_system ();
-      return FALSE;
-    }
+  if (!_dbus_user_database_get_uid (db, uid, &info, error))
+    goto out;
 
   if (!_dbus_string_append (homedir, info->homedir))
     {
-      _dbus_user_database_unlock_system ();
-      return FALSE;
+      _DBUS_SET_OOM (error);
+      goto out;
     }
-  
-  _dbus_user_database_unlock_system ();
-  return TRUE;
+
+  ret = TRUE;
+
+out:
+  if (locked)
+    _dbus_user_database_unlock_system ();
+
+  _DBUS_ASSERT_ERROR_XOR_BOOL (error, ret);
+  return ret;
 }
 
 /**
@@ -563,11 +587,10 @@ _dbus_credentials_add_from_user (DBusCredentials         *credentials,
       return FALSE;
     }
 
-  db = _dbus_user_database_get_system ();
+  db = _dbus_user_database_get_system (error);
   if (db == NULL)
     {
       _dbus_user_database_unlock_system ();
-      _DBUS_SET_OOM (error);
       return FALSE;
     }
 
