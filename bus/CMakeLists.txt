@@ -1,5 +1,5 @@
 add_definitions(-DDBUS_COMPILATION)
-
+set(EXPAT_LIBRARIES "expat::expat")
 set(EFENCE "")
 
 # config files for installation 
