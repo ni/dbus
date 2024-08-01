@@ -635,9 +635,9 @@ _dbus_auth_script_run (const DBusString *filename)
 #ifdef DBUS_UNIX
                 const DBusString *username;
 
-                if (!_dbus_username_from_current_process (&username))
+                if (!_dbus_username_from_current_process (&username, &error))
                   {
-                    _dbus_warn ("no memory for username");
+                    _dbus_warn ("%s", error.message);
                     _dbus_string_free (&to_send);
                     goto out;
                   }

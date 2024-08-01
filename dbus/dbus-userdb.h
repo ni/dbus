@@ -85,21 +85,21 @@ void           _dbus_group_info_unref           (DBusGroupInfo    *info);
 #endif /* DBUS_USERDB_INCLUDES_PRIVATE */
 
 DBUS_PRIVATE_EXPORT
-DBusUserDatabase* _dbus_user_database_get_system    (void);
+DBusUserDatabase* _dbus_user_database_get_system    (DBusError *error);
 DBUS_PRIVATE_EXPORT _DBUS_WARN_UNUSED_RESULT
 dbus_bool_t       _dbus_user_database_lock_system   (void);
 DBUS_PRIVATE_EXPORT
 void              _dbus_user_database_unlock_system (void);
 void              _dbus_user_database_flush_system  (void);
 
-dbus_bool_t _dbus_get_user_id                   (const DBusString  *username,
-                                                 dbus_uid_t        *uid);
 dbus_bool_t _dbus_get_group_id                  (const DBusString  *group_name,
-                                                 dbus_gid_t        *gid);
+                                                 dbus_gid_t        *gid,
+                                                 DBusError         *error);
 DBUS_PRIVATE_EXPORT
 dbus_bool_t _dbus_get_user_id_and_primary_group (const DBusString  *username,
                                                  dbus_uid_t        *uid_p,
-                                                 dbus_gid_t        *gid_p);
+                                                 dbus_gid_t        *gid_p,
+                                                 DBusError         *error);
 dbus_bool_t _dbus_groups_from_uid		(dbus_uid_t            uid,
                                                  dbus_gid_t          **group_ids,
                                                  int                  *n_group_ids,
@@ -113,11 +113,15 @@ dbus_bool_t _dbus_is_a_number                   (const DBusString *str,
                                                  unsigned long    *num);
 
 DBUS_PRIVATE_EXPORT
-dbus_bool_t _dbus_username_from_current_process (const DBusString **username);
+dbus_bool_t _dbus_username_from_current_process (const DBusString **username,
+                                                 DBusError         *error);
 DBUS_PRIVATE_EXPORT
-dbus_bool_t _dbus_homedir_from_current_process  (const DBusString **homedir);
+dbus_bool_t _dbus_homedir_from_current_process  (const DBusString **homedir,
+                                                 DBusError         *error);
+DBUS_EMBEDDED_TESTS_EXPORT
 dbus_bool_t _dbus_homedir_from_uid              (dbus_uid_t         uid,
-                                                 DBusString        *homedir);
+                                                 DBusString        *homedir,
+                                                 DBusError         *error);
 
 DBUS_END_DECLS
 

@@ -908,11 +908,8 @@ start_busconfig_child (BusConfigParser   *parser,
 
       _dbus_assert (dirs == NULL);
 
-      if (!_dbus_get_standard_session_servicedirs (&dirs))
-        {
-          BUS_SET_OOM (error);
-          return FALSE;
-        }
+      if (!_dbus_get_standard_session_servicedirs (&dirs, error))
+        return FALSE;
 
       /* We have traditionally watched the standard session service
        * directories with inotify, and allowed service files whose names do not
@@ -1127,7 +1124,8 @@ start_busconfig_child (BusConfigParser   *parser,
           _dbus_string_init_const (&username, user);
 
           if (_dbus_parse_unix_user_from_config (&username,
-                                                 &e->d.policy.gid_uid_or_at_console))
+                                                 &e->d.policy.gid_uid_or_at_console,
+                                                 NULL))
             e->d.policy.type = POLICY_USER;
           else
             _dbus_warn ("Unknown username \"%s\" in message bus configuration file",
@@ -1139,7 +1137,8 @@ start_busconfig_child (BusConfigParser   *parser,
           _dbus_string_init_const (&group_name, group);
 
           if (_dbus_parse_unix_group_from_config (&group_name,
-                                                  &e->d.policy.gid_uid_or_at_console))
+                                                  &e->d.policy.gid_uid_or_at_console,
+                                                  NULL))
             e->d.policy.type = POLICY_GROUP;
           else
             _dbus_warn ("Unknown group \"%s\" in message bus configuration file",
@@ -1760,7 +1759,7 @@ append_rule_from_element (BusConfigParser   *parser,
           
           _dbus_string_init_const (&username, user);
       
-          if (_dbus_parse_unix_user_from_config (&username, &uid))
+          if (_dbus_parse_unix_user_from_config (&username, &uid, NULL))
             {
               rule = bus_policy_rule_new (BUS_POLICY_RULE_USER, allow); 
               if (rule == NULL)
@@ -1792,7 +1791,7 @@ append_rule_from_element (BusConfigParser   *parser,
           
           _dbus_string_init_const (&groupname, group);
           
-          if (_dbus_parse_unix_group_from_config (&groupname, &gid))
+          if (_dbus_parse_unix_group_from_config (&groupname, &gid, NULL))
             {
               rule = bus_policy_rule_new (BUS_POLICY_RULE_GROUP, allow); 
               if (rule == NULL)
