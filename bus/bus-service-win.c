@@ -20,11 +20,22 @@
  *
  */
 
-// based on http://msdn.microsoft.com/library/default.asp?url=/library/en-us/dllproc/base/installing_a_service.asp
+// based on https://learn.microsoft.com/en-us/windows/win32/services/installing-a-service
 // you can view the debug output with http://www.sysinternals.com/Utilities/DebugView.html
 
-#include <windows.h>
+//#include <windows.h>
 #include <stdio.h>
+
+#include <config.h>
+#include "bus.h"
+#include "driver.h"
+#include <dbus/dbus-internals.h>
+#include <dbus/dbus-watch.h>
+#include <stdlib.h>
+#include <string.h>
+
+#include <dbus/dbus-sysdeps-win.h>
+
 
 #define SERVICE_NAME "dbus-daemon"
 #define SERVICE_DISPLAY_NAME "DBus-Daemon"
@@ -40,12 +51,99 @@ VOID  WINAPI DBusServiceCtrlHandler (DWORD opcode);
 
 BOOL verbose = TRUE;
 
-#ifdef DBUS_SERVICE
-extern int _dbus_main_init(int argc, char **argv);
-extern void _dbus_main_loop();
-extern void _dbus_main_end();
-#endif
+static BusContext *context;
 
+static void
+check_two_config_files (const DBusString *config_file,
+                        const char       *extra_arg)
+{
+    if (_dbus_string_get_length (config_file) > 0)
+    {
+        SvcDebugOut(" [DBUS_SERVICE] check_two_config_files.\n", 0);
+        exit (1);
+    }
+}
+
+int _dbus_main_init(int argc, char **argv)
+{
+    DBusError error;
+    DBusString config_file;
+    DBusString address;
+    DBusPipe print_addr_pipe;
+    DBusPipe print_pid_pipe;
+    BusContextFlags flags;
+    void *ready_event_handle;
+    char *addr_str;
+
+    ready_event_handle = NULL;
+
+    if (!_dbus_string_init (&config_file))
+        return 1;
+
+    if (!_dbus_string_init (&address))
+        return 1;
+
+    flags = BUS_CONTEXT_FLAG_WRITE_PID_FILE;
+    // No syslog and no fork for session
+    flags &= ~(BUS_CONTEXT_FLAG_SYSLOG_ALWAYS | BUS_CONTEXT_FLAG_FORK_ALWAYS);
+    flags |= (BUS_CONTEXT_FLAG_SYSLOG_NEVER | BUS_CONTEXT_FLAG_FORK_NEVER);
+
+    // Init for session
+    check_two_config_files (&config_file, "session");
+
+    if (!_dbus_get_session_config_file (&config_file))
+    {
+        SvcDebugOut(" [DBUS_SERVICE] No Session configuration file specified.\n", 0);
+        return 2;
+    }
+
+    if (_dbus_string_get_length (&config_file) == 0)
+    {
+        SvcDebugOut(" [DBUS_SERVICE] No configuration file specified.\n", 0);
+        return 3;
+    }
+
+    // init print address pipe
+    _dbus_pipe_invalidate (&print_pid_pipe);
+    _dbus_pipe_invalidate (&print_addr_pipe);
+    //_dbus_pipe_init_stdout (&print_addr_pipe);
+
+    // Init bux context
+    dbus_error_init (&error);
+    if (_dbus_string_get_length(&config_file) > 0)
+    {
+        addr_str = _dbus_string_get_data (&config_file);
+        SvcDebugOut(" [DBUS_SERVICE] config_file : ", 0);
+        SvcDebugOut(addr_str, 0);
+    }
+    else
+    {
+        SvcDebugOut(" [DBUS_SERVICE] config_file zero\n", 0);
+    }
+    context = bus_context_new (&config_file, flags,
+                &print_addr_pipe, &print_pid_pipe, ready_event_handle,
+                _dbus_string_get_length(&address) > 0 ? &address : NULL,
+                &error);
+    _dbus_string_free (&config_file);
+    _dbus_string_free (&address);
+    
+    if (context == NULL)
+    {
+        SvcDebugOut(" [DBUS_SERVICE] Failed to start message bus\n", 0);
+        dbus_error_free (&error);
+        return 6;
+    }
+    addr_str = bus_context_get_address (context);
+    SvcDebugOut(" [DBUS_SERVICE] Bus address : ", 0);
+    SvcDebugOut(addr_str, 0);
+    if (dbus_setenv ("DBUS_SESSION_BUS_ADDRESS", addr_str) == FALSE)
+    {
+        SvcDebugOut(" [DBUS_SERVICE] Failed to set DBUS_SESSION_BUS_ADDRESS\n", 0);
+        return 7;
+    }
+
+    return 0;
+}
 
 // Open a handle to the SC Manager database.
 BOOL OpenDataBase()
@@ -155,14 +253,14 @@ BOOL RemoveService()
 DWORD DBusServiceInitialization(DWORD   argc, LPTSTR  *argv,
                                 DWORD *specificError)
 {
-    argv;
-    argc;
+    DWORD status;
     specificError;
-#ifdef DBUS_SERVICE
-	  _dbus_main_init(argc,argv); 
-#endif
+    
+
+	status = _dbus_main_init(argc, argv); 
+
     SvcDebugOut(" [DBUS_SERVICE] Init Service\n",0);
-    return(0);
+    return status;
 }
 
 VOID WINAPI DBusServiceCtrlHandler (DWORD Opcode)
@@ -185,9 +283,9 @@ VOID WINAPI DBusServiceCtrlHandler (DWORD Opcode)
 
     case SERVICE_CONTROL_STOP:
         // Do whatever it takes to stop here.
-#ifdef DBUS_SERVICE
-        _dbus_main_end();
-#endif
+        bus_context_shutdown (context);
+        bus_context_unref (context);
+        SvcDebugOut(" [DBUS_SERVICE] Service Stopped\n",0);
         DBusServiceStatus.dwWin32ExitCode = 0;
         DBusServiceStatus.dwCurrentState  = SERVICE_STOPPED;
         DBusServiceStatus.dwCheckPoint    = 0;
@@ -248,7 +346,7 @@ void WINAPI DBusServiceStart (DWORD argc, LPTSTR *argv)
     }
 
     // Initialization code goes here.
-    status = DBusServiceInitialization(argc,argv, &specificError);
+    status = DBusServiceInitialization(argc, argv, &specificError);
 
     // Handle error condition
     if (status != NO_ERROR)
@@ -277,10 +375,9 @@ void WINAPI DBusServiceStart (DWORD argc, LPTSTR *argv)
     // This is where the service does its work.
     SvcDebugOut(" [DBUS_SERVICE] Returning the Main Thread \n",0);
 
-#ifdef DBUS_SERVICE
-    _dbus_main_loop();
-#endif
-		return;
+    _dbus_loop_run (bus_context_get_loop (context));
+
+	return;
 }
 
 void RunService()
