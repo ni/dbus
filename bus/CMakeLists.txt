@@ -128,7 +128,7 @@ if(DBUS_SERVICE)
 
     add_executable_version_info(dbus_service_SOURCES "dbus-service")
     add_executable(dbus-service ${dbus_service_SOURCES} )
-    target_link_libraries(dbus-service ${DBUS_INTERNAL_LIBRARIES} ${EXPAT_LIBRARIES})
+    target_link_libraries(dbus-service dbus-daemon-internal ${DBUS_INTERNAL_LIBRARIES} ${EXPAT_LIBRARIES})
     set_target_properties(dbus-service PROPERTIES COMPILE_FLAGS ${DBUS_INTERNAL_CLIENT_DEFINITIONS})
     install(TARGETS dbus-service ${INSTALL_TARGETS_DEFAULT_ARGS})
 endif()
