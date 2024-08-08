@@ -23,7 +23,6 @@
 // based on https://learn.microsoft.com/en-us/windows/win32/services/installing-a-service
 // you can view the debug output with http://www.sysinternals.com/Utilities/DebugView.html
 
-//#include <windows.h>
 #include <stdio.h>
 
 #include <config.h>
@@ -62,6 +61,34 @@ check_two_config_files (const DBusString *config_file,
         SvcDebugOut(" [DBUS_SERVICE] check_two_config_files.\n", 0);
         exit (1);
     }
+}
+
+BOOL SetWindowRegisterKey(const char* key, const char* value)
+{
+    HKEY hKey;
+    LONG result;
+
+    // Open the registry key
+    result = RegOpenKeyEx(HKEY_LOCAL_MACHINE, "SYSTEM\\CurrentControlSet\\Control\\Session Manager\\Environment", 0, KEY_SET_VALUE, &hKey);
+    if (result != ERROR_SUCCESS)
+    {
+        // Failed to open the key
+        return FALSE;
+    }
+
+    // Set the value of the registry key
+    result = RegSetValueEx(hKey, key, 0, REG_SZ, (const BYTE*)value, strlen(value) + 1);
+    if (result != ERROR_SUCCESS)
+    {
+        // Failed to set the value
+        RegCloseKey(hKey);
+        return FALSE;
+    }
+
+    // Close the registry key
+    RegCloseKey(hKey);
+
+    return TRUE;
 }
 
 int _dbus_main_init(int argc, char **argv)
@@ -106,7 +133,6 @@ int _dbus_main_init(int argc, char **argv)
     // init print address pipe
     _dbus_pipe_invalidate (&print_pid_pipe);
     _dbus_pipe_invalidate (&print_addr_pipe);
-    //_dbus_pipe_init_stdout (&print_addr_pipe);
 
     // Init bux context
     dbus_error_init (&error);
@@ -136,12 +162,12 @@ int _dbus_main_init(int argc, char **argv)
     addr_str = bus_context_get_address (context);
     SvcDebugOut(" [DBUS_SERVICE] Bus address : ", 0);
     SvcDebugOut(addr_str, 0);
-    if (dbus_setenv ("DBUS_SESSION_BUS_ADDRESS", addr_str) == FALSE)
+
+    if (SetWindowRegisterKey("DBUS_SESSION_BUS_ADDRESS", addr_str) == FALSE)
     {
-        SvcDebugOut(" [DBUS_SERVICE] Failed to set DBUS_SESSION_BUS_ADDRESS\n", 0);
+        SvcDebugOut(" [DBUS_SERVICE] Failed to set DBUS_SESSION_BUS_ADDRESS in registry\n", 0);
         return 7;
     }
-
     return 0;
 }
 
@@ -191,7 +217,7 @@ BOOL InstallService()
                      TEXT(SERVICE_DISPLAY_NAME),// service name to display
                      SERVICE_ALL_ACCESS,        // desired access
                      SERVICE_WIN32_OWN_PROCESS, // service type
-                     SERVICE_DEMAND_START,      // start type
+                     SERVICE_AUTO_START,      // start type
                      SERVICE_ERROR_NORMAL,      // error control type
                      szPath,                    // path to service's binary
                      NULL,                      // no load ordering group
