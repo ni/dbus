@@ -1,0 +1,70 @@
+parameters:
+- name: ci_build
+  type: boolean
+  default: false
+
+stages:
+- stage: build_export_package
+  displayName: 'Build and Export'
+  jobs:
+  - job: windows_pipeline
+    pool:
+      name: Drivers-NIBuildFarm-RFMIBUILD
+      demands:
+      - agent.os -equals Windows_NT
+
+    variables:
+      ewdk_path: 'C:\EWDK\EWDK_ni_release_svc_prod1_22621_220804-1759'
+      DbusServiceFileName: 'dbus-service.exe'
+      DbusReleasePath: 'build\bin\Release\'
+
+    steps:
+    - script: |
+        $(python3) -m venv .venv
+        call .venv\Scripts\activate
+        python --version
+        python -m pip install -U pip
+        python -m pip install conan
+      displayName: "Install conan"
+
+    - script: |
+        call .venv\Scripts\activate
+        conan config install -v -t file conan_profile/ci_wins -tf profiles
+        conan remote remove rnd-conan-ci
+      continueOnError: true 
+      displayName: "Setup conan"
+
+    - task: CmdLine@2
+      displayName: "Install Dependencies with conan"
+      inputs:
+        targetType: 'inline'
+        script: |
+          call .venv\Scripts\activate
+          call $(ewdk_path)\LaunchBuildEnv.cmd
+          conan install . --build=missing --profile:all=ci_wins --update
+    
+    - task: CmdLine@2
+      displayName: "Build with conan"
+      inputs:
+        targetType: 'inline'
+        script: |
+          call .venv\Scripts\activate
+          call $(ewdk_path)\LaunchBuildEnv.cmd
+          conan build . --profile:all=ci_wins
+
+    - powershell: |
+        ((test-path -path $(DbusReleasePath)) -and (test-path -path $(DbusReleasePath)$(DbusServiceFileName))) -or (exit -2)
+      displayName: "Check export file existence"
+
+    - task: CmdLine@2
+      displayName: "Build with conan"
+      condition: succeeded()
+      env:
+        NIEXPORTZ_AUTH_TOKEN: $(ARTIFACTORY_PASSWORD)
+      inputs:
+        targetType: 'inline'
+        script: |
+          call .venv\Scripts\activate
+          python -m pip install --upgrade pip
+          pip install adhoc_artifact -i https://pypi.ni.systems
+          adhoc-artifact --payload $(DbusReleasePath) --name "dbus" --version $(Version.Full) --force

@@ -1,0 +1,20 @@
+
+# =============================================================
+# Leaverage from nibuild version.yml
+# Always update this when there are a new version
+# =============================================================
+variables:
+  - name: Workspace.Name
+    value: 'dbus'
+  - name: Version.Major
+    value: 1
+  - name: Version.Minor
+    value: 15
+  - name: Version.Update
+    value: 9
+  - name: Version.Phase
+    value: d
+  - name: Version.Distribution
+    value: '1.15.9'
+  - name: Channel
+    value: 'official'

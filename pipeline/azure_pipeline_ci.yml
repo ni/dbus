@@ -1,0 +1,26 @@
+resources:
+  repositories:
+  - repository: Tools
+    type: git
+    ref: main
+    name: DevCentral/Tools
+
+variables:
+  - template: /pipeline/nibuild/version.yml
+  - template: /eng/pipeline/jfrog/artifactory-variables.yml@Tools
+  - template: /eng/pipeline/nibuild/build-number-counter_v2.yml@Tools
+  - group: rnd-var-group-ni-readonly-ci
+
+trigger:
+  batch: true
+  branches:
+    include: 
+      - main
+  paths:
+    exclude:
+      - README*
+
+extends:
+  template: pipeline.yml
+  parameters:
+    ci_build: true
