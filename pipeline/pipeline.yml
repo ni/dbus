@@ -57,6 +57,13 @@ stages:
       displayName: "Check export file existence"
 
     - task: CmdLine@2
+      displayName: "Create Readme.md file for export"
+      inputs:
+        targetType: 'inline'
+        script: |
+          echo "This is a dbus export from https://github.com/ni/dbus" > $(DbusReleasePath)README.md
+
+    - task: CmdLine@2
       displayName: "Build with conan"
       condition: succeeded()
       env:
