@@ -58,6 +58,7 @@ stages:
 
     - task: CmdLine@2
       displayName: "Create Readme.md file for export"
+      condition: and(succeeded(), eq(${{ parameters.ci_build }}, true))
       inputs:
         targetType: 'inline'
         script: |
@@ -65,7 +66,7 @@ stages:
 
     - task: CmdLine@2
       displayName: "Build with conan"
-      condition: succeeded()
+      condition: and(succeeded(), eq(${{ parameters.ci_build }}, true))
       env:
         NIEXPORTZ_AUTH_TOKEN: $(ARTIFACTORY_PASSWORD)
       inputs:
